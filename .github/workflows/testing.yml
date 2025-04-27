@@ -62,6 +62,16 @@ jobs:
       - name: Workaround checkout Needed single revision issue
         run: git submodule foreach 'git rev-parse HEAD > /dev/null 2>&1 || rm -rf $PWD' || true
 
+      - name: Show_config
+        run: |
+          sw_vers
+          clang++ --version
+
+      - name: Show_config2
+        run: |
+          sw_vers
+          clang++ --version
+
       - uses: actions/checkout@v3
         with:
           fetch-depth: '0'
