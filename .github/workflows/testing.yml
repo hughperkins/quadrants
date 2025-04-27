@@ -66,6 +66,9 @@ jobs:
         run: |
           sw_vers
           clang++ --version
+          sudo xcode-select -s /Library/Developer/CommandLineTools
+          xcode-select -p
+          clang++ --version
 
       - name: Show_config2
         run: |
