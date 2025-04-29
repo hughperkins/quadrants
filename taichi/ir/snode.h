@@ -294,8 +294,13 @@ class SNode {
   }
 
   std::string get_ch_from_parent_func_name() const {
+    std::cout << "get_ch_from_parent_func_name" << std::endl;
+    std::cout << "get_ch_from_parent_func_name parent " << ((void *)parent)
+              << std::endl;
     TI_ASSERT(parent != nullptr);
-    return fmt::format("get_ch_{}_to_{}", parent->get_name(), get_name());
+    auto res = fmt::format("get_ch_{}_to_{}", parent->get_name(), get_name());
+    std::cout << "get_ch_from_parent_func_name " << res << std::endl;
+    return res;
   }
 
   std::string refine_coordinates_func_name() const {

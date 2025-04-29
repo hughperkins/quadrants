@@ -478,6 +478,7 @@ class TypeCheck : public IRVisitor {
   }
 
   void visit(GetRootStmt *stmt) override {
+    std::cout << "GetRootStmt type check " << std::endl;
     stmt->ret_type =
         TypeFactory::get_instance().get_pointer_type(PrimitiveType::gen);
   }

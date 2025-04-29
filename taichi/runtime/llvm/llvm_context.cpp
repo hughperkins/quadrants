@@ -998,6 +998,7 @@ llvm::Module *TaichiLLVMContext::get_this_thread_runtime_module() {
 llvm::Function *TaichiLLVMContext::get_struct_function(const std::string &name,
                                                        int tree_id) {
   auto *data = get_this_thread_data();
+  std::cout << "get_struct_function " << name << " " << tree_id << std::endl;
   return data->struct_modules[tree_id]->getFunction(name);
 }
 

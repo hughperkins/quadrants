@@ -341,6 +341,7 @@ SNode *SNode::get_dual() const {
 }
 
 void SNode::set_snode_tree_id(int id) {
+  std::cout << " SNode::set_snode_tree_id " << std::endl;
   snode_tree_id_ = id;
   for (auto &child : ch) {
     child->set_snode_tree_id(id);
@@ -352,6 +353,7 @@ int SNode::get_snode_tree_id() const {
 }
 
 const SNode *SNode::get_root() const {
+  std::cout << " SNode::get_root " << std::endl;
   if (!parent) {  // root->parent == nullptr
     return this;
   }

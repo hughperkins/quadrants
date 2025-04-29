@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <type_traits>
 #include <cstring>
+#include <iostream>
 
 #include "taichi/inc/constants.h"
 #include "taichi/inc/cuda_kernel_utils.inc.h"
@@ -324,7 +325,43 @@ struct StructMeta {
   RuntimeContext *context;
 };
 
-STRUCT_FIELD(StructMeta, snode_id)
+// STRUCT_FIELD(StructMeta, snode_id)
+
+extern "C" decltype(StructMeta::snode_id) StructMeta_get_snode_id(
+    StructMeta *s) {
+  std::cout << "StructMeta_get_snode_id" << std::endl;
+  return s->snode_id;
+}
+extern "C" decltype(StructMeta::snode_id) *StructMeta_get_ptr_snode_id(
+    StructMeta *s) {
+  std::cout << "StructMeta_get_ptr_snode_id" << std::endl;
+  return &(s->snode_id);
+}
+extern "C" void StructMeta_set_snode_id(StructMeta *s,
+                                        decltype(StructMeta::snode_id) f) {
+  std::cout << "StructMeta_set_snode_id" << std::endl;
+  std::cout << "StructMeta_set_snode_id s " << ((void *)s) << " snodeid " << f
+            << std::endl;
+  s->snode_id = f;
+}
+
+extern "C" decltype(StructMeta::context) StructMeta_get_context(StructMeta *s) {
+  std::cout << "StructMeta_get_context" << std::endl;
+  return s->context;
+}
+extern "C" decltype(StructMeta::context) *StructMeta_get_ptr_context(
+    StructMeta *s) {
+  std::cout << "StructMeta_get_ptr_context" << std::endl;
+  return &(s->context);
+}
+extern "C" void StructMeta_set_context(StructMeta *s,
+                                       decltype(StructMeta::context) f) {
+  std::cout << "StructMeta_set_context" << std::endl;
+  std::cout << "StructMeta_set_context s " << ((void *)s) << " context "
+            << ((void *)f) << std::endl;
+  s->context = f;
+}
+
 STRUCT_FIELD(StructMeta, element_size)
 STRUCT_FIELD(StructMeta, max_num_elements)
 STRUCT_FIELD(StructMeta, get_num_elements);
@@ -332,7 +369,7 @@ STRUCT_FIELD(StructMeta, lookup_element);
 STRUCT_FIELD(StructMeta, from_parent_element);
 STRUCT_FIELD(StructMeta, refine_coordinates);
 STRUCT_FIELD(StructMeta, is_active);
-STRUCT_FIELD(StructMeta, context);
+// STRUCT_FIELD(StructMeta, context);
 
 struct LLVMRuntime;
 
@@ -615,7 +652,21 @@ struct LLVMRuntime {
 // TODO: are these necessary?
 STRUCT_FIELD_ARRAY(LLVMRuntime, element_lists);
 STRUCT_FIELD_ARRAY(LLVMRuntime, node_allocators);
-STRUCT_FIELD_ARRAY(LLVMRuntime, roots);
+// STRUCT_FIELD_ARRAY(LLVMRuntime, roots);
+
+extern "C" std::remove_all_extents_t<decltype(LLVMRuntime::roots)>
+LLVMRuntime_get_roots(LLVMRuntime *s, int i) {
+  std::cout << "LLVMRuntime_get_roots [" << i
+            << "] roots=" << ((void *)s->roots[i]) << std::endl;
+  return s->roots[i];
+}
+extern "C" void LLVMRuntime_set_roots(
+    LLVMRuntime *s,
+    int i,
+    std::remove_all_extents_t<decltype(LLVMRuntime::roots)> f) {
+  s->roots[i] = f;
+};
+
 STRUCT_FIELD_ARRAY(LLVMRuntime, root_mem_sizes);
 STRUCT_FIELD(LLVMRuntime, temporaries);
 STRUCT_FIELD(LLVMRuntime, assert_failed);
@@ -1858,6 +1909,7 @@ struct printf_helper {
 
 template <typename... Args>
 void taichi_printf(LLVMRuntime *runtime, const char *format, Args &&...args) {
+  std::cout << "taichi_printf" << std::endl;
 #if ARCH_cuda
   printf_helper helper;
   helper.push_back(std::forward<Args>(args)...);

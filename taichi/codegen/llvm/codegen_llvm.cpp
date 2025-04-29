@@ -1718,19 +1718,26 @@ llvm::Value *TaskCodeGenLLVM::call_struct_func(int tree_id,
 }
 
 void TaskCodeGenLLVM::visit(GetRootStmt *stmt) {
-  if (stmt->root() == nullptr)
+  std::cout << "GetRootStmt in codegen_llvm.cpp " << std::endl;
+  if (stmt->root() == nullptr) {
+    std::cout << "GetRootStmt stmt->root is nullptr" << std::endl;
     llvm_val[stmt] = builder->CreateBitCast(
         get_root(SNodeTree::kFirstID),
         llvm::PointerType::get(
             StructCompilerLLVM::get_llvm_node_type(
                 module.get(), prog->get_snode_root(SNodeTree::kFirstID)),
             0));
-  else
+  } else {
+    std::cout << "GetRootStmt stmt->root is not nullptr "
+                 "stmt->root()->get_snode_tree_id() "
+              << stmt->root()->get_snode_tree_id() << std::endl;
+    std::cout << "      stmt->root() " << stmt->root() << std::endl;
     llvm_val[stmt] = builder->CreateBitCast(
         get_root(stmt->root()->get_snode_tree_id()),
         llvm::PointerType::get(
             StructCompilerLLVM::get_llvm_node_type(module.get(), stmt->root()),
             0));
+  }
 }
 
 void TaskCodeGenLLVM::visit(LinearizeStmt *stmt) {
@@ -2747,6 +2754,18 @@ LLVMCompiledTask TaskCodeGenLLVM::run_compilation() {
     }
   }
 
+  // Dump the LLVM IR to stderr or to a file
+  std::string ir_dump;
+  llvm::raw_string_ostream os(ir_dump);
+  module->print(os, nullptr);
+  os.flush();
+
+  // Option 1: Print to stderr
+  std::cerr << "==== Lowered LLVM IR ====\n"
+            << ir_dump << "\n==== End of LLVM IR ====\n";
+
+  std::cout << "TaskCodeGenLLVM::run_compilation returning moving stuff"
+            << std::endl;
   return {std::move(offloaded_tasks), std::move(module),
           std::move(used_tree_ids), std::move(struct_for_tls_sizes)};
 }
