@@ -2750,6 +2750,15 @@ LLVMCompiledTask TaskCodeGenLLVM::run_compilation() {
       tlctx->mark_function_as_amdgpu_kernel(func);
     }
   }
+  // Dump the LLVM IR to stderr or to a file
+  std::string ir_dump;
+  llvm::raw_string_ostream os(ir_dump);
+  module->print(os, nullptr);
+  os.flush();
+
+  // Option 1: Print to stderr
+  std::cerr << "==== Lowered LLVM IR ====\n"
+            << ir_dump << "\n==== End of LLVM IR ====\n";
 
   return {std::move(offloaded_tasks), std::move(module),
           std::move(used_tree_ids), std::move(struct_for_tls_sizes)};

@@ -240,7 +240,7 @@ SNodeTree *Program::add_snode_tree(std::unique_ptr<SNode> root,
   const int id = allocate_snode_tree_id();
   auto tree = std::make_unique<SNodeTree>(id, std::move(root));
   tree->root()->set_snode_tree_id(id);
-  std::cout << "Program::add_snode_tree id=" << id << std::endl;
+  std::cout << "Program::add_snode_tree x id=" << id << std::endl;
   if (compile_only) {
     program_impl_->compile_snode_tree_types(tree.get());
   } else {

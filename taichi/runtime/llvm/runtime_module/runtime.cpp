@@ -616,7 +616,21 @@ struct LLVMRuntime {
 // TODO: are these necessary?
 STRUCT_FIELD_ARRAY(LLVMRuntime, element_lists);
 STRUCT_FIELD_ARRAY(LLVMRuntime, node_allocators);
-STRUCT_FIELD_ARRAY(LLVMRuntime, roots);
+// STRUCT_FIELD_ARRAY(LLVMRuntime, roots);
+
+extern "C" std::remove_all_extents_t<decltype(LLVMRuntime::roots)>
+LLVMRuntime_get_roots(LLVMRuntime *s, int i) {
+  std::cout << "LLVMRuntime_get_roots [" << i
+            << "] roots=" << ((void *)s->roots[i]) << std::endl;
+  return s->roots[i];
+}
+extern "C" void LLVMRuntime_set_roots(
+    LLVMRuntime *s,
+    int i,
+    std::remove_all_extents_t<decltype(LLVMRuntime::roots)> f) {
+  s->roots[i] = f;
+};
+
 STRUCT_FIELD_ARRAY(LLVMRuntime, root_mem_sizes);
 STRUCT_FIELD(LLVMRuntime, temporaries);
 STRUCT_FIELD(LLVMRuntime, assert_failed);
