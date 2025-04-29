@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#ifdef TI_WITH_LLVM
+// #ifdef TI_WITH_LLVM
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Linker/Linker.h"
@@ -1718,6 +1718,9 @@ llvm::Value *TaskCodeGenLLVM::call_struct_func(int tree_id,
 }
 
 void TaskCodeGenLLVM::visit(GetRootStmt *stmt) {
+  std::cout << "TaskCodeGenLLVM::visit(GetRootStmt *stmt) "
+            << stmt->root()->get_snode_tree_id() << std::endl;
+  // throw new std::invalid_argument("foo");
   if (stmt->root() == nullptr)
     llvm_val[stmt] = builder->CreateBitCast(
         get_root(SNodeTree::kFirstID),
@@ -2687,6 +2690,7 @@ llvm::IntegerType *TaskCodeGenLLVM::get_integer_type(int bits) {
 }
 
 llvm::Value *TaskCodeGenLLVM::get_root(int snode_tree_id) {
+  std::cout << "codegen_llvm.cpp get_root " << snode_tree_id << std::endl;
   return call("LLVMRuntime_get_roots", get_runtime(),
               tlctx->get_constant(snode_tree_id));
 }
@@ -2989,4 +2993,4 @@ LLVMCompiledKernel LLVMCompiledKernel::clone() const {
 
 }  // namespace taichi::lang
 
-#endif  // #ifdef TI_WITH_LLVM
+// #endif  // #ifdef TI_WITH_LLVM

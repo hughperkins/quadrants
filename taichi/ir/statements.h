@@ -1300,6 +1300,9 @@ class LinearizeStmt : public Stmt {
 class GetRootStmt : public Stmt {
  public:
   explicit GetRootStmt(SNode *root = nullptr) : root_(root) {
+    std::cout << "GetRootStmt::GetRootStmt root=" << root->get_snode_tree_id()
+              << std::endl;
+    // throw new std::runtime_error("GetRootStmt constructor");
     if (this->root_ != nullptr) {
       while (this->root_->parent) {
         this->root_ = this->root_->parent;

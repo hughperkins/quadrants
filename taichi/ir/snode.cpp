@@ -38,6 +38,7 @@ SNode &SNode::create_node(std::vector<Axis> axes,
                           std::vector<int> sizes,
                           SNodeType type,
                           const DebugInfo &dbg_info) {
+  std::cout << "SNode::create_node: type " << (int)type << std::endl;
   if (sizes.size() == 1) {
     sizes = std::vector<int>(axes.size(), sizes[0]);
   }

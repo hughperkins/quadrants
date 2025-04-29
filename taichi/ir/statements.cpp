@@ -72,6 +72,10 @@ GlobalPtrStmt::GlobalPtrStmt(SNode *snode,
       activate(activate),
       is_cell_access(is_cell_access),
       is_bit_vectorized(false) {
+  std::cout << "GlobalPtrStmt::GlobalPtrStmt() snode->get_name()="
+            << snode->get_name() << " snode->get_snode_tree_id() "
+            << snode->get_snode_tree_id() << std::endl;
+  // throw new std::runtime_error("GlobalPtrStmt constructor");
   TI_ASSERT(snode != nullptr);
   element_type() = snode->dt;
   TI_STMT_REG_FIELDS;

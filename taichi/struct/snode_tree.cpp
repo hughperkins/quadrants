@@ -16,6 +16,7 @@ void get_snodes_to_root_id_impl(const SNode &node,
 
 SNodeTree::SNodeTree(int id, std::unique_ptr<SNode> root)
     : id_(id), root_(std::move(root)) {
+  std::cout << "SNodeTree::SNodeTree: id " << id << std::endl;
   check_tree_validity(*root_);
 }
 

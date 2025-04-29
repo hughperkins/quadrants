@@ -9,6 +9,8 @@ SNodeTreeManager::SNodeTreeManager(GfxRuntime *rtm) : runtime_(rtm) {
 }
 
 void SNodeTreeManager::materialize_snode_tree(SNodeTree *tree) {
+  std::cout << "SNodeTreeManager::materialize_snode_tree: id " << tree->id()
+            << std::endl;
   auto *const root = tree->root();
   CompiledSNodeStructs compiled_structs = compile_snode_structs(*root);
   runtime_->add_root_buffer(compiled_structs.root_size);

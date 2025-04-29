@@ -44,6 +44,10 @@ void ScalarPointerLowerer::run() {
     return;
 
   auto *leaf_snode = snodes_[path_length_ - 1];
+  auto *root_snode = snodes_[0];
+  std::cout << "ScalarPointerLowerer::run() leaf_snode="
+            << leaf_snode->get_name() << " root_snode snode tree id "
+            << root_snode->get_snode_tree_id() << std::endl;
   Stmt *last = lowered_->push_back<GetRootStmt>(snodes_[0]);
   for (int i = 0; i < path_length_; i++) {
     auto *snode = snodes_[i];

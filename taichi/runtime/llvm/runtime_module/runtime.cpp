@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <type_traits>
 #include <cstring>
+#include <iostream>
 
 #include "taichi/inc/constants.h"
 #include "taichi/inc/cuda_kernel_utils.inc.h"
@@ -993,6 +994,10 @@ void runtime_initialize_snodes(LLVMRuntime *runtime,
                                bool all_dense) {
   // For Metal runtime, we have to make sure that both the beginning address
   // and the size of the root buffer memory are aligned to page size.
+  std::cout << "LLVMRuntime::initialize_snodes: root_size = " << root_size
+            << ", rounded_size = " << rounded_size << " root_id " << root_id
+            << " num_snodes " << num_snodes << " snode_tree_id "
+            << snode_tree_id << std::endl;
   runtime->root_mem_sizes[snode_tree_id] = rounded_size;
   runtime->roots[snode_tree_id] = ptr;
   // runtime->request_allocate_aligned ready to use

@@ -69,6 +69,9 @@ void LlvmProgramImpl::materialize_snode_tree(SNodeTree *tree,
   compile_snode_tree_types(tree);
   int snode_tree_id = tree->id();
 
+  std::cout << "LlvmProgramImpl::materialize_snode_tree snode_tree_id="
+            << snode_tree_id << std::endl;
+
   TI_ASSERT(cache_data_->fields.find(snode_tree_id) !=
             cache_data_->fields.end());
   initialize_llvm_runtime_snodes(cache_data_->fields.at(snode_tree_id),

@@ -805,6 +805,11 @@ IndexExpression::IndexExpression(const Expr &var,
                                  const ExprGroup &indices,
                                  const DebugInfo &dbg_info)
     : Expression(dbg_info), var(var), indices_group({indices}) {
+  std::cout << "IndexExpression::IndexExpression without ret_shape "
+            << std::endl;
+  std::cout << "   snode tree id "
+            << ((FieldExpression *)(var.expr.get()))->snode->get_snode_tree_id()
+            << std::endl;
 }
 
 IndexExpression::IndexExpression(const Expr &var,
@@ -815,6 +820,7 @@ IndexExpression::IndexExpression(const Expr &var,
       var(var),
       indices_group(indices_group),
       ret_shape(ret_shape) {
+  std::cout << "IndexExpression::IndexExpression with ret_shape " << std::endl;
   // IndexExpression with ret_shape is used for matrix slicing, where each entry
   // of ExprGroup is interpreted as a group of indices to return within each
   // axis. For example, mat[0, 3:5] has indices_group={0, [3, 4]}, where [3, 4]
@@ -1631,6 +1637,9 @@ void ASTBuilder::expr_assign(const Expr &lhs,
 Expr ASTBuilder::expr_subscript(const Expr &expr,
                                 const ExprGroup &indices,
                                 const DebugInfo &dbg_info) {
+  std::cout << "ASTBuilder::expr_subscript expr snode tree id "
+            << ((FieldExpression *)expr.expr.get())->snode->get_snode_tree_id()
+            << std::endl;
   TI_ASSERT(expr.is<FieldExpression>() || expr.is<MatrixFieldExpression>() ||
             expr.is<ExternalTensorExpression>() ||
             is_tensor(expr.expr->ret_type.ptr_removed()));

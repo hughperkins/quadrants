@@ -398,6 +398,9 @@ void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
   const auto snode_metas = field_cache_data.snode_metas;
   const int tree_id = field_cache_data.tree_id;
   const int root_id = field_cache_data.root_id;
+  std::cout << "LlvmRuntimeExecutor::initialize_llvm_runtime_snodes root_size="
+            << root_size << " tree_id=" << tree_id << " root_id=" << root_id
+            << std::endl;
 
   bool all_dense = config_.demote_dense_struct_fors;
   for (size_t i = 0; i < snode_metas.size(); i++) {

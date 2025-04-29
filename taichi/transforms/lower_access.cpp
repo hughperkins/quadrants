@@ -90,6 +90,11 @@ class LowerAccess : public IRVisitor {
   VecStatement lower_ptr(GlobalPtrStmt *ptr,
                          bool activate,
                          SNodeOpType snode_op = SNodeOpType::undefined) {
+    std::cout << "LowerAccess::lower_ptr() snode_op=" << (int)snode_op
+              << " ptr->snode->get_name()=" << ptr->snode->get_name()
+              << " ptr->snode->get_snode_tree_id() "
+              << ptr->snode->get_snode_tree_id() << " activate=" << activate
+              << std::endl;
     VecStatement lowered;
     if (snode_op == SNodeOpType::is_active) {
       // For ti.is_active
