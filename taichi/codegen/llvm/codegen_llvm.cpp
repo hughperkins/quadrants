@@ -2,7 +2,7 @@
 
 #include <algorithm>
 
-#ifdef TI_WITH_LLVM
+// #ifdef TI_WITH_LLVM
 #include "llvm/Bitcode/BitcodeReader.h"
 #include "llvm/IR/Module.h"
 #include "llvm/Linker/Linker.h"
@@ -3008,4 +3008,4 @@ LLVMCompiledKernel LLVMCompiledKernel::clone() const {
 
 }  // namespace taichi::lang
 
-#endif  // #ifdef TI_WITH_LLVM
+// #endif  // #ifdef TI_WITH_LLVM
