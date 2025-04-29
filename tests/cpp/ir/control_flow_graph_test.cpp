@@ -30,7 +30,7 @@ TEST(ControlFlowGraph, Basic) {
 
   auto *tmp7 = builder.create_matrix_init({tmp4, tmp5, tmp6});
   builder.create_global_store(tmp3, tmp7);
-  auto *tmp8 = builder.get_int32(8);
+  builder.get_int32(8);
   auto *tmp9 = builder.get_bool(true);
   builder.create_assert(tmp9, "assertion failed");
 
