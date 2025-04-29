@@ -55,6 +55,7 @@ class FieldsBuilder:
         for i in range(size):
             res = impl.get_runtime().prog.get_snode_root(i)
             roots_ptr.append(snode.SNode(res))
+        print('"FieldsBuilder _finalized_roots")', roots_ptr)
         return roots_ptr
 
     # TODO: move this to SNodeTree class.

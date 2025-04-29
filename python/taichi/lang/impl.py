@@ -187,7 +187,7 @@ def validate_subscript_index(value, index):
 @taichi_scope
 def subscript(ast_builder, value, *_indices, skip_reordered=False):
     print("lang.impl.py subscript", value)
-    print("dir(value.snode)", dir(value.snode.ptr))
+    # print("dir(value.snode)", dir(value.snode.ptr))
     print("   snode tree id", value.snode.ptr.get_snode_tree_id())
     # , value.snode.ptr.get_snode_tree_id())
     dbg_info = _ti_core.DebugInfo(get_runtime().get_current_src_info())
@@ -393,6 +393,7 @@ class PyTaichi:
 
     @staticmethod
     def materialize_root_fb(is_first_call):
+        print("PyTaichi.materialize_root_fb is_first_call", is_first_call, "root.finalized", root.finalized)
         if root.finalized:
             return
         if not is_first_call and root.empty:
@@ -472,6 +473,7 @@ class PyTaichi:
             _field._calc_dynamic_index_stride()
 
     def materialize(self):
+        print("PyTaichi.materialize self.materialized", self.materialized)
         self.materialize_root_fb(not self.materialized)
         self.materialized = True
 
