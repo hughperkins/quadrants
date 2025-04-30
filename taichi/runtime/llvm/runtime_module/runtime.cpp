@@ -929,8 +929,8 @@ void runtime_initialize(
     preallocated_buffer +=
         taichi::iroundup(sizeof(LLVMRuntime), taichi_page_size);
   } else {
-    runtime =
-        (LLVMRuntime *)host_allocator(memory_pool, sizeof(LLVMRuntime), 128, true);
+    runtime = (LLVMRuntime *)host_allocator(memory_pool, sizeof(LLVMRuntime),
+                                            128, true);
   }
 
   PreallocatedMemoryChunk runtime_objects_chunk;
