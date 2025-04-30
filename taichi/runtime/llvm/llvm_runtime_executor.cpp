@@ -27,8 +27,9 @@ void assert_failed_host(const char *msg) {
 
 void *host_allocate_aligned(HostMemoryPool *memory_pool,
                             std::size_t size,
-                            std::size_t alignment) {
-  return memory_pool->allocate(size, alignment);
+                            std::size_t alignment,
+                            bool exclusive) {
+  return memory_pool->allocate(size, alignment, exclusive);
 }
 
 }  // namespace
