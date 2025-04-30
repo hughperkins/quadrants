@@ -622,6 +622,9 @@ extern "C" std::remove_all_extents_t<decltype(LLVMRuntime::roots)>
 LLVMRuntime_get_roots(LLVMRuntime *s, int i) {
   std::cout << "LLVMRuntime_get_roots [" << i
             << "] roots=" << ((void *)s->roots[i]) << std::endl;
+  for (int j = 0; j <= i + 1; j++) {
+    std::cout << "roots[" << j << "]=" << ((void *)s->roots[j]) << std::endl;
+  }
   return s->roots[i];
 }
 extern "C" void LLVMRuntime_set_roots(
@@ -933,6 +936,8 @@ void runtime_initialize(
     void *_host_allocator,
     void *_host_printf,
     void *_host_vsnprintf) {
+  std::cout << "runtime_initalize resul_buffer " << (void *)result_buffer
+            << " memory_pool " << (void *)memory_pool << std::endl;
   // bootstrap
   auto host_allocator = (host_allocator_type)_host_allocator;
   auto host_printf = (host_printf_type)_host_printf;
@@ -940,13 +945,28 @@ void runtime_initialize(
   LLVMRuntime *runtime = nullptr;
   Ptr preallocated_tail = preallocated_buffer + preallocated_size;
   if (preallocated_size) {
+    std::cout << " using preallocated buffer for runtime "
+              << (void *)preallocated_buffer << std::endl;
     runtime = (LLVMRuntime *)preallocated_buffer;
     preallocated_buffer +=
         taichi::iroundup(sizeof(LLVMRuntime), taichi_page_size);
   } else {
-    runtime =
-        (LLVMRuntime *)host_allocator(memory_pool, sizeof(LLVMRuntime), 128, true);
+    std::cout << " getting runtime from host_allocator " << std::endl;
+    runtime = (LLVMRuntime *)host_allocator(memory_pool, sizeof(LLVMRuntime),
+                                            128, true);
   }
+  std::cout << "runtime " << (void *)runtime << " sizeof "
+            << sizeof(LLVMRuntime) << " preallocated_size " << preallocated_size
+            << std::endl;
+  std::cout << "&(runtime->roots) " << (void *)(&(runtime->roots)) << std::endl;
+  std::cout << "&(runtime->roots[19]) " << (void *)(&(runtime->roots[19]))
+            << std::endl;
+  std::cout << "runtime->result_buffer " << (void *)runtime->result_buffer
+            << std::endl;
+  std::cout << "&(runtime->result_buffer) "
+            << (void *)(&(runtime->result_buffer)) << std::endl;
+  std::cout << "&(runtime->error_code) " << (void *)(&(runtime->error_code))
+            << std::endl;
 
   PreallocatedMemoryChunk runtime_objects_chunk;
   runtime_objects_chunk.preallocated_size = preallocated_size;
@@ -954,6 +974,10 @@ void runtime_initialize(
   runtime_objects_chunk.preallocated_tail = preallocated_tail;
 
   runtime->runtime_objects_chunk = std::move(runtime_objects_chunk);
+  std::cout << " runtime_object_chunk "
+            << (void *)(runtime->runtime_objects_chunk.preallocated_head)
+            << " size " << runtime->runtime_objects_chunk.preallocated_size
+            << std::endl;
 
   runtime->result_buffer = result_buffer;
   runtime->set_result(taichi_result_buffer_ret_value_id, runtime);
@@ -967,6 +991,9 @@ void runtime_initialize(
   runtime->temporaries = (Ptr)runtime->allocate_aligned(
       runtime->runtime_objects_chunk, taichi_global_tmp_buffer_size,
       taichi_page_size);
+  std::cout << " temporaries " << (void *)(runtime->temporaries)
+            << " taichi_global_tmp_buffer_size "
+            << taichi_global_tmp_buffer_size << std::endl;
 
   runtime->num_rand_states = num_rand_states;
   runtime->rand_states = (RandState *)runtime->allocate_aligned(
@@ -1012,8 +1039,32 @@ void runtime_initialize_snodes(LLVMRuntime *runtime,
             << ", rounded_size = " << rounded_size << " root_id " << root_id
             << " num_snodes " << num_snodes << " snode_tree_id "
             << snode_tree_id << std::endl;
+  std::cout << "&roots [19] " << ((void *)(&runtime->roots[19]))
+            << " roots[19] " << (void *)(runtime->roots[19]) << std::endl;
+  while (true) {
+    FILE *file = fopen("/tmp/continue.flg", "r");
+    if (file) {
+      std::cout << "found /tmp/continue.flg" << std::endl;
+      fclose(file);
+      break;
+    }
+
+    std::cout << "waiting on /tmp/continue.flg" << std::endl;
+#if defined(_WIN32)
+    Sleep(200);
+#else
+    struct timespec ts;
+    ts.tv_sec = 0;
+    ts.tv_nsec = 200000000L;
+    nanosleep(&ts, NULL);
+#endif
+  }
   runtime->root_mem_sizes[snode_tree_id] = rounded_size;
   runtime->roots[snode_tree_id] = ptr;
+  // if(snode_tree_id == 19) {
+  //   std::cout << "hit node 19 " << std::endl;
+  //   while(true){}
+  // }
   // runtime->request_allocate_aligned ready to use
   // initialize the root node element list
   if (all_dense) {

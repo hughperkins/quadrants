@@ -257,6 +257,7 @@ class Field:
         return key + ((0,) * (_ti_core.get_max_num_indices() - len(key)))
 
     def _initialize_host_accessors(self):
+        print("Field._initialize_host_accessors, might call materialize on runtime")
         if self.host_accessors:
             return
         taichi.lang.impl.get_runtime().materialize()

@@ -273,6 +273,8 @@ std::size_t LlvmRuntimeExecutor::get_snode_num_dynamically_allocated(
 void LlvmRuntimeExecutor::check_runtime_error(uint64 *result_buffer) {
   synchronize();
   auto *runtime_jit_module = get_runtime_jit_module();
+  std::cout << "LlvmRuntimeExecutor::check_runtime_error llvm_runtime_="
+            << ((void *)llvm_runtime_) << std::endl;
   runtime_jit_module->call<void *>("runtime_retrieve_and_reset_error_code",
                                    llvm_runtime_);
   auto error_code =

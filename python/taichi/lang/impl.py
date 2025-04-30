@@ -324,6 +324,7 @@ class SrcInfoGuard:
 
 class PyTaichi:
     def __init__(self, kernels=None):
+        print("PyTaici.__init__")
         self.materialized = False
         self.prog = None
         self.src_info_stack = []
@@ -345,6 +346,7 @@ class PyTaichi:
         self.unfinalized_fields_builder = {}
 
     def initialize_fields_builder(self, builder):
+        print("PyTaichi.initialize_fields_builder")
         self.unfinalized_fields_builder[builder] = get_traceback(2)
 
     def clear_compiled_functions(self):
@@ -352,9 +354,11 @@ class PyTaichi:
             k.compiled_kernels.clear()
 
     def finalize_fields_builder(self, builder):
+        print("PyTaichi.finalize_fields_builder")
         self.unfinalized_fields_builder.pop(builder)
 
     def validate_fields_builder(self):
+        print("PyTaichi.validate_fields_builder")
         for builder, tb in self.unfinalized_fields_builder.items():
             if builder == _root_fb:
                 continue
@@ -367,6 +371,7 @@ class PyTaichi:
         count = 0
         for k in self.kernels:
             count += len(k.compiled_kernels)
+        print("PyTaichi.get_num_compiled_functions", count)
         return count
 
     def src_info_guard(self, info):
@@ -501,6 +506,7 @@ class PyTaichi:
         self.materialized = False
 
     def sync(self):
+        print("PyTaichi.sync about to call materialize")
         self.materialize()
         self.prog.synchronize()
 

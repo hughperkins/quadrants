@@ -35,6 +35,9 @@ void *UnifiedAllocator::allocate(std::size_t size,
 
   // Note: put mutex on MemoryPool instead of Allocator, since Allocators are
   // transparent to user code
+  std::cout << "UnifiedAllocator::allocate() size=" << size
+            << " alignment=" << alignment << " exclusive=" << exclusive
+            << std::endl;
   std::size_t allocation_size = size;
   if (!chunks_.empty() && !exclusive) {
     // Search for a non-exclusive chunk that has enough space
@@ -54,9 +57,13 @@ void *UnifiedAllocator::allocate(std::size_t size,
         // success
         TI_ASSERT(ret % alignment == 0);
         chunk.head = (void *)head;
+        std::cout << " unified allocator returning " << (void *)ret
+                  << std::endl;
         return (void *)ret;
       }
     }
+  } else {
+    std::cout << " chunks empty or reqeusted exclusive" << std::endl;
   }
 
   // Allocate a new chunk
@@ -73,6 +80,7 @@ void *UnifiedAllocator::allocate(std::size_t size,
 
   void *ptr =
       HostMemoryPool::get_instance().allocate_raw_memory(allocation_size);
+  std::cout << " unified allocator allocated raw memory " << ptr << std::endl;
   chunk.data = ptr;
   chunk.head = chunk.data;
   chunk.tail = (void *)((std::size_t)chunk.head + allocation_size);

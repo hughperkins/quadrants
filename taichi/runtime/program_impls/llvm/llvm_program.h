@@ -170,6 +170,11 @@ class LlvmProgramImpl : public ProgramImpl {
     runtime_exec_->synchronize();
   }
 
+  void dumpRoots() {
+    LLVMRuntime *rt = runtime_exec_->get_llvm_runtime();
+    std::cout << "dumpRoots " << ((void *)rt) << std::endl;
+  }
+
   LLVMRuntime *get_llvm_runtime() {
     return runtime_exec_->get_llvm_runtime();
   }

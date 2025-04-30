@@ -26,6 +26,8 @@ void *HostMemoryPool::allocate(std::size_t size,
     TI_ERROR("Memory pool is already destroyed");
   }
   void *ret = allocator_->allocate(size, alignment, exclusive);
+  std::cout << " self " << this << " allocate size " << size << " alignment "
+            << alignment << " => " << ret << std::endl;
   return ret;
 }
 
@@ -38,6 +40,7 @@ void HostMemoryPool::release(std::size_t size, void *ptr) {
 
   if (allocator_->release(size, ptr)) {
     if (dynamic_cast<UnifiedAllocator *>(allocator_.get())) {
+      std::cout << "deallocate size " << size << " ptr " << ptr << std::endl;
       deallocate_raw_memory(ptr);  // release raw memory as well
     }
   }

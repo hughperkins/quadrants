@@ -187,6 +187,7 @@ class Tape:
     def __enter__(self):
         assert not self.entered, "Tape can be entered only once."
         self.entered = True
+        print("Tape.__enter__")
 
         if isinstance(self.loss, Field):
             impl.get_runtime().materialize()
@@ -277,6 +278,7 @@ class Tape:
 
 def clear_all_gradients(gradient_type=SNodeGradType.ADJOINT):
     """Sets the gradients of all fields to zero."""
+    print("Tape.clear_all_gradients()")
     impl.get_runtime().materialize()
 
     def visit(node):
@@ -430,6 +432,7 @@ class FwdMode:
     def __enter__(self):
         assert not self.entered, "Forward mode manager can be entered only once."
         self.entered = True
+        print("FwdMode.__enter__")
         impl.get_runtime().materialize()
         if not isinstance(self.loss, list):
             self.loss = [self.loss]
