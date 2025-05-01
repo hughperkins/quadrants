@@ -188,7 +188,7 @@ def validate_subscript_index(value, index):
 def subscript(ast_builder, value, *_indices, skip_reordered=False):
     print("lang.impl.py subscript", value)
     # print("dir(value.snode)", dir(value.snode.ptr))
-    print("   snode tree id", value.snode.ptr.get_snode_tree_id())
+    # print("   snode tree id", value.snode.ptr.get_snode_tree_id())
     # , value.snode.ptr.get_snode_tree_id())
     dbg_info = _ti_core.DebugInfo(get_runtime().get_current_src_info())
     ast_builder = get_runtime().compiling_callable.ast_builder()
