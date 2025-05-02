@@ -142,7 +142,33 @@ TEST(ControlFlowGraph, Basic) {
   cfg->print_graph_structure();
 }
 
-TEST(ControlFlowGraph, reaching_definition_analysis_basic1) {
+void dump_reach_definition(ControlFlowGraph *cfg) {
+  for (auto i = 0; i < cfg->size(); i++) {
+    std::cout << "Node " << i << ":" << std::endl;
+    std::cout << "  reach_in:";
+    for (const auto &stmt : cfg->nodes[i]->reach_in) {
+      std::cout << " " << stmt->name();
+    }
+    std::cout << std::endl;
+    std::cout << "  reach_gen:";
+    for (const auto &stmt : cfg->nodes[i]->reach_gen) {
+      std::cout << " " << stmt->name();
+    }
+    std::cout << std::endl;
+    std::cout << "  reach_kill:";
+    for (const auto &stmt : cfg->nodes[i]->reach_kill) {
+      std::cout << " " << stmt->name();
+    }
+    std::cout << std::endl;
+    std::cout << "  reach_out:";
+    for (const auto &stmt : cfg->nodes[i]->reach_out) {
+      std::cout << " " << stmt->name();
+    }
+    std::cout << std::endl;
+  }
+}
+
+TEST(ControlFlowGraph, reaching_definition_analysis_basic1_a) {
   auto block = std::make_unique<Block>();
   auto var_a = block->push_back<AllocaStmt>(PrimitiveType::i32);
   auto const_123 =
@@ -156,28 +182,7 @@ TEST(ControlFlowGraph, reaching_definition_analysis_basic1) {
   auto cfg = irpass::analysis::build_cfg(block.get());
   cfg->print_graph_structure();
   cfg->reaching_definition_analysis(false);
-  for (auto i = 0; i < cfg->size(); i++) {
-    std::cout << "reach_in for node " << i << ":" << std::endl;
-    for (const auto &stmt : cfg->nodes[i]->reach_in) {
-      std::cout << stmt->name() << std::endl;
-    }
-    std::cout << "reach_gen for node " << i << ":" << std::endl;
-    for (const auto &stmt : cfg->nodes[i]->reach_gen) {
-      std::cout << stmt->name() << std::endl;
-    }
-    std::cout << "reach_kill for node " << i << ":" << std::endl;
-    for (const auto &stmt : cfg->nodes[i]->reach_kill) {
-      std::cout << stmt->name() << std::endl;
-    }
-    std::cout << "reach_out for node " << i << ":" << std::endl;
-    for (const auto &stmt : cfg->nodes[i]->reach_out) {
-      std::cout << stmt->name() << std::endl;
-    }
-  }
-  std::cout << "reach_gen for node 0:" << std::endl;
-  for (const auto &stmt : cfg->nodes[0]->reach_gen) {
-    std::cout << stmt->name() << std::endl;
-  }
+  dump_reach_definition(cfg.get());
   cfg->print_graph_structure();
 }
 
