@@ -168,7 +168,64 @@ void dump_reach_definition(ControlFlowGraph *cfg) {
   }
 }
 
+void dump_live_definition(ControlFlowGraph *cfg) {
+  for (auto i = 0; i < cfg->size(); i++) {
+    std::cout << "Node " << i << ":" << std::endl;
+    std::cout << "  live_gen:";
+    for (const auto &stmt : cfg->nodes[i]->live_gen) {
+      std::cout << " " << stmt->name();
+    }
+    std::cout << std::endl;
+    std::cout << "  live_kill:";
+    for (const auto &stmt : cfg->nodes[i]->live_kill) {
+      std::cout << " " << stmt->name();
+    }
+    std::cout << std::endl;
+    std::cout << "  live_in:";
+    for (const auto &stmt : cfg->nodes[i]->live_in) {
+      std::cout << " " << stmt->name();
+    }
+    std::cout << std::endl;
+    std::cout << "  live_out:";
+    for (const auto &stmt : cfg->nodes[i]->live_out) {
+      std::cout << " " << stmt->name();
+    }
+    std::cout << std::endl;
+  }
+}
+
 TEST(ControlFlowGraph, reaching_definition_analysis_basic1_a) {
+  auto block = std::make_unique<Block>();
+  block->push_back<AllocaStmt>(PrimitiveType::i32);
+
+  std::string ir_string;
+  irpass::print(block->get_ir_root(), &ir_string);
+  std::cout << ir_string << std::endl;
+
+  auto cfg = irpass::analysis::build_cfg(block.get());
+  cfg->print_graph_structure();
+  cfg->reaching_definition_analysis(false);
+  dump_reach_definition(cfg.get());
+  cfg->print_graph_structure();
+}
+
+TEST(ControlFlowGraph, reaching_definition_analysis_basic1_b) {
+  auto block = std::make_unique<Block>();
+  block->push_back<AllocaStmt>(PrimitiveType::i32);
+  block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 123));
+
+  std::string ir_string;
+  irpass::print(block->get_ir_root(), &ir_string);
+  std::cout << ir_string << std::endl;
+
+  auto cfg = irpass::analysis::build_cfg(block.get());
+  cfg->print_graph_structure();
+  cfg->reaching_definition_analysis(false);
+  dump_reach_definition(cfg.get());
+  cfg->print_graph_structure();
+}
+
+TEST(ControlFlowGraph, reaching_definition_analysis_basic1_c) {
   auto block = std::make_unique<Block>();
   auto var_a = block->push_back<AllocaStmt>(PrimitiveType::i32);
   auto const_123 =
@@ -198,4 +255,138 @@ TEST(ControlFlowGraph, reaching_definition_analysis_8675) {
   cfg->reaching_definition_analysis(false);
   cfg->print_graph_structure();
 }
+
+Block *addCfgIfNode(Block *block) {
+  auto const_true =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::u1, true));
+  auto if_stmt = static_cast<IfStmt *>(block->push_back<IfStmt>(const_true));
+  if_stmt->true_statements = std::make_unique<Block>();
+  auto true_block = if_stmt->true_statements.get();
+  return true_block;
+}
+
+TEST(ControlFlowGraph, live_variable_analysis_gen_kill_101) {
+  auto block = std::make_unique<Block>();
+  auto var_a = block->push_back<AllocaStmt>(PrimitiveType::i32);
+  auto const_123 =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 123));
+
+  {
+    auto if_block = addCfgIfNode(block.get());
+    if_block->push_back<LocalLoadStmt>(
+        var_a);  // should cause a gen ("used (load) before any assignment, in
+                 // same basic block")
+  }
+
+  {
+    auto if_block = addCfgIfNode(block.get());
+    if_block->push_back<LocalStoreStmt>(
+        var_a,
+        const_123);  // should cause a kill ("assigned (store) in a block")
+  }
+
+  {
+    auto if_block = addCfgIfNode(block.get());
+    if_block->push_back<LocalLoadStmt>(
+        var_a);  // should cause a gen ("used (load) before any assignment, in
+                 // same basic block")
+    if_block->push_back<LocalStoreStmt>(
+        var_a,
+        const_123);  // should cause a kill ("assigned (store) in a block")
+  }
+
+  std::string ir_string;
+  irpass::print(block->get_ir_root(), &ir_string);
+  std::cout << ir_string << std::endl;
+
+  auto cfg = irpass::analysis::build_cfg(block.get());
+  cfg->print_graph_structure();
+  ControlFlowGraph::LiveVarAnalysisConfig config_opt;
+  cfg->live_variable_analysis(false, config_opt);
+  dump_live_definition(cfg.get());
+  cfg->print_graph_structure();
+}
+
+TEST(ControlFlowGraph, live_variable_analysis_progressive_death) {
+  auto block = std::make_unique<Block>();
+  auto var_a = block->push_back<AllocaStmt>(PrimitiveType::i32);
+  auto var_b = block->push_back<AllocaStmt>(PrimitiveType::i32);
+  auto var_c = block->push_back<AllocaStmt>(PrimitiveType::i32);
+  // auto var_d = block->push_back<AllocaStmt>(PrimitiveType::i32);
+  // auto var_e = block->push_back<AllocaStmt>(PrimitiveType::i32);
+
+  {
+    auto if_block = addCfgIfNode(block.get());
+    if_block->push_back<LocalLoadStmt>(var_a);
+  }
+
+  {
+    auto if_block = addCfgIfNode(block.get());
+    if_block->push_back<LocalLoadStmt>(var_b);
+  }
+
+  {
+    auto if_block = addCfgIfNode(block.get());
+    if_block->push_back<LocalLoadStmt>(var_c);
+  }
+
+  std::string ir_string;
+  irpass::print(block->get_ir_root(), &ir_string);
+  std::cout << ir_string << std::endl;
+
+  auto cfg = irpass::analysis::build_cfg(block.get());
+  cfg->print_graph_structure();
+  ControlFlowGraph::LiveVarAnalysisConfig config_opt;
+  cfg->live_variable_analysis(false, config_opt);
+  dump_live_definition(cfg.get());
+  cfg->print_graph_structure();
+}
+
+TEST(ControlFlowGraph, live_variable_analysis_basic1_c) {
+  auto block = std::make_unique<Block>();
+  auto var_a = block->push_back<AllocaStmt>(PrimitiveType::i32);
+  auto var_c = block->push_back<AllocaStmt>(PrimitiveType::i32);
+  auto const_123 =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 123));
+  auto const_1 =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 1));
+  block->push_back<LocalStoreStmt>(var_a, const_123);
+  auto const_true =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::u1, true));
+
+  {
+    auto if_stmt = static_cast<IfStmt *>(block->push_back<IfStmt>(const_true));
+    {
+      if_stmt->true_statements = std::make_unique<Block>();
+      auto block = if_stmt->true_statements.get();
+      auto load_a = block->push_back<LocalLoadStmt>(var_a);
+      auto add =
+          block->push_back<BinaryOpStmt>(BinaryOpType::add, load_a, const_1);
+      block->push_back<LocalStoreStmt>(var_a, add);
+    }
+  }
+
+  {
+    auto if_stmt = static_cast<IfStmt *>(block->push_back<IfStmt>(const_true));
+    {
+      if_stmt->true_statements = std::make_unique<Block>();
+      auto block = if_stmt->true_statements.get();
+      auto var_b = block->push_back<AllocaStmt>(PrimitiveType::i32);
+      block->push_back<LocalStoreStmt>(var_b, const_1);
+      block->push_back<LocalStoreStmt>(var_c, const_1);
+    }
+  }
+
+  std::string ir_string;
+  irpass::print(block->get_ir_root(), &ir_string);
+  std::cout << ir_string << std::endl;
+
+  auto cfg = irpass::analysis::build_cfg(block.get());
+  cfg->print_graph_structure();
+  ControlFlowGraph::LiveVarAnalysisConfig config_opt;
+  cfg->live_variable_analysis(false, config_opt);
+  dump_live_definition(cfg.get());
+  cfg->print_graph_structure();
+}
+
 }  // namespace taichi::lang
