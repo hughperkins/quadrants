@@ -90,5 +90,13 @@ TEST(ControlFlowGraph, Basic) {
   Node 1 : $0~$15 (size=16); prev={0}; next={2}
   Node 2 : empty; prev={1}
   */
+  cfg->store_to_load_forwarding(false, false);
+  cfg->print_graph_structure();
+
+  irpass::print(block->get_ir_root(), &ir_string);
+  std::cout << ir_string << std::endl;
+
+  cfg = irpass::analysis::build_cfg(block.get());
+  cfg->print_graph_structure();
 }
 }  // namespace taichi::lang
