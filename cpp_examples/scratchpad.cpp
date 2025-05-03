@@ -29,10 +29,8 @@ int main() {
                   /*create_load=*/false,
                   /*arg_depth=*/0));
 
-  std::vector<Stmt *> indices({const_2});
-  std::vector<int> elementShape;
   auto extptr = std::unique_ptr<ExternalPtrStmt>(
-      new ExternalPtrStmt(arg0LoadStmt, indices, 1, elementShape, false));
+      new ExternalPtrStmt(arg0LoadStmt, {const_2}, 1, {}, false));
   auto arg0Ptr = block->insert(std::move(extptr));
   auto globalStore0 =
       std::unique_ptr<GlobalStoreStmt>(new GlobalStoreStmt(arg0Ptr, const_123));
