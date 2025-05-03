@@ -53,6 +53,12 @@ void writeIR(Block *block) {
   cast1->cast_type = type_factory.get_primitive_type(PrimitiveTypeID::i32);
   auto cast1b = block->insert(std::move(cast1));
   writeResult(block, 9, cast1b);
+
+  auto cast2 = std::unique_ptr<UnaryOpStmt>(
+      new UnaryOpStmt(UnaryOpType::cast_value, matrixInit));
+  cast2->cast_type = type_factory.get_primitive_type(PrimitiveTypeID::f32);
+  auto cast2b = block->insert(std::move(cast2));
+  writeResult(block, 10, cast2b);
 }
 
 int main() {
