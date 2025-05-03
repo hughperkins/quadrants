@@ -278,6 +278,8 @@ CFGNode *find_node(ControlFlowGraph *cfg, Stmt *stmt) {
 
 TEST(ControlFlowGraph, live_variable_analysis_gen_kill_101) {
   auto block = std::make_unique<Block>();
+  // this causes a kill; I'm not sure on what basis 🤔 There is no assignment
+  // here
   auto var_a = block->push_back<AllocaStmt>(PrimitiveType::i32);
   auto const_123 =
       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 123));
