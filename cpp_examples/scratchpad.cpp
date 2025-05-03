@@ -52,10 +52,6 @@ void writeIR(Block *block) {
       new UnaryOpStmt(UnaryOpType::cast_value, const_555));
   cast1->cast_type = type_factory.get_primitive_type(PrimitiveTypeID::i32);
   auto cast1b = block->insert(std::move(cast1));
-  //   auto cast1 = static_cast<UnaryOpStmt
-  //   *>(block->push_back<UnaryOpStmt>(UnaryOpStmt(UnaryOpType::cast_value,
-  //   const_123))); cast1->cast_type =
-  //   type_factory.get_primitive_type(PrimitiveTypeID::i32);
   writeResult(block, 9, cast1b);
 }
 
@@ -81,7 +77,7 @@ int main() {
       program.compile_kernel(config, program.get_device_caps(), *kernel_ret);
   program.materialize_runtime();
 
-  const int size = 10;
+  const int size = 20;
   auto array = std::make_unique<float[]>(size);
 
   ctx_ret.set_arg_external_array_with_shape(
