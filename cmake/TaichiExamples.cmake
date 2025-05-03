@@ -39,6 +39,15 @@ target_include_directories(cpp_examples_run_snode_ret_mine
     ${PROJECT_SOURCE_DIR}/external/eigen
   )
 
+  add_executable(cpp_examples_scratchpad "cpp_examples/scratchpad.cpp")
+target_link_libraries(cpp_examples_scratchpad PRIVATE taichi_core)
+target_include_directories(cpp_examples_scratchpad
+  PRIVATE
+    ${PROJECT_SOURCE_DIR}
+    ${PROJECT_SOURCE_DIR}/external/spdlog/include
+    ${PROJECT_SOURCE_DIR}/external/eigen
+  )
+
 # add_executable(${EXAMPLES_NAME} ${TAICHI_EXAMPLES_SOURCE})
 # if (WIN32)
 #     # Output the executable to build/ instead of build/Debug/...
