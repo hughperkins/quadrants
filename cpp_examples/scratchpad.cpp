@@ -30,15 +30,19 @@ void writeIR(Block *block) {
   auto const_555 =
       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 5.55));
 
-  //   auto const_1_23 =
-  //       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 1.23f));
-  //   auto const_2_34 =
-  //       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 2.34f));
-  //   auto const_3_45 =
-  //       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 3.45f));
+  auto const_1_23 =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 1.23f));
+  auto const_2_34 =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 2.34f));
+  auto const_3_45 =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 3.45f));
 
-  //   std::vector<Stmt *> matrix_elements = {const_1_23, const_2_34,
-  //   const_3_45};
+  std::vector<Stmt *> matrix_elements = {const_1_23, const_2_34, const_3_45};
+  auto matrixInit = block->push_back<MatrixInitStmt>(matrix_elements);
+  auto &type_factory = TypeFactory::get_instance();
+  Type *tensor3 = type_factory.get_tensor_type(
+      {3}, type_factory.get_primitive_type(PrimitiveTypeID::f32));
+  matrixInit->ret_type = tensor3;
 
   writeResult(block, 1, const_123);
   writeResult(block, 4, const_555);
