@@ -10,7 +10,7 @@ void writeResult(Block *block, int idx, Stmt *value) {
   auto arg0LoadStmt = block->push_back<ArgLoadStmt>(
       ArgLoadStmt({0},
                   TypeFactory::get_instance().get_ndarray_struct_type(
-                      get_data_type<int>(), 1),
+                      get_data_type<float>(), 1),
                   /*is_ptr=*/true,
                   /*create_load=*/false,
                   /*arg_depth=*/0));
@@ -26,9 +26,19 @@ void writeResult(Block *block, int idx, Stmt *value) {
 
 void writeIR(Block *block) {
   auto const_123 =
-      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 123));
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 1.23));
   auto const_555 =
-      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 555));
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 5.55));
+
+  //   auto const_1_23 =
+  //       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 1.23f));
+  //   auto const_2_34 =
+  //       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 2.34f));
+  //   auto const_3_45 =
+  //       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::f32, 3.45f));
+
+  //   std::vector<Stmt *> matrix_elements = {const_1_23, const_2_34,
+  //   const_3_45};
 
   writeResult(block, 1, const_123);
   writeResult(block, 4, const_555);
@@ -48,7 +58,7 @@ int main() {
   writeIR(block.get());
 
   kernel_ret = std::make_unique<Kernel>(program, block.release(), "ret");
-  kernel_ret->insert_ndarray_param(get_data_type<int>(), /*total_dim=*/1);
+  kernel_ret->insert_ndarray_param(get_data_type<float>(), /*total_dim=*/1);
   kernel_ret->finalize_params();
 
   auto ctx_ret = kernel_ret->make_launch_context();
@@ -57,7 +67,7 @@ int main() {
   program.materialize_runtime();
 
   const int size = 10;
-  auto array = std::make_unique<int[]>(size);
+  auto array = std::make_unique<float[]>(size);
 
   ctx_ret.set_arg_external_array_with_shape(
       /*arg_id=*/{0}, (uint64)array.get(), size, {size});
