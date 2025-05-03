@@ -17,7 +17,6 @@ int main() {
   std::unique_ptr<Kernel> kernel_ret;
 
   auto block = std::make_unique<Block>();
-  // block >>>
   auto const_2 =
       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 2));
   auto const_123 =
@@ -41,12 +40,8 @@ int main() {
   auto globalStore0 =
       std::unique_ptr<GlobalStoreStmt>(new GlobalStoreStmt(arg0Ptr, const_123));
   block->insert(std::move(globalStore0));
-  block->push_back<ReturnStmt>(
-      const_123);  // not sure if this does anything tbh :P
 
   kernel_ret = std::make_unique<Kernel>(program, block.release(), "ret");
-  kernel_ret->insert_ret(PrimitiveType::i32);
-  kernel_ret->finalize_rets();
   kernel_ret->insert_ndarray_param(get_data_type<int>(), /*total_dim=*/1);
   kernel_ret->finalize_params();
 
@@ -62,7 +57,6 @@ int main() {
       /*arg_id=*/{0}, (uint64)array.get(), size, {size});
 
   program.launch_kernel(compiled_kernel_data, ctx_ret);
-  std::cout << "res " << program.fetch_result<int>(0) << std::endl;
   for (int i = 0; i < size; i++) {
     std::cout << "array[" << i << "] = " << array[i] << std::endl;
   }
