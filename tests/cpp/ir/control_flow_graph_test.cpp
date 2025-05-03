@@ -276,6 +276,85 @@ CFGNode *find_node(ControlFlowGraph *cfg, Stmt *stmt) {
   return nullptr;
 }
 
+TEST(ControlFlowGraph, reaching_definition_analysis_gen_kill_101) {
+  // node 1
+  auto block = std::make_unique<Block>();
+  auto var_a = block->push_back<AllocaStmt>(
+      PrimitiveType::i32);  // looks like we rae treating this as both a gen and
+                            // kill
+  auto const_123 =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 123));
+
+  Stmt *node_a_first_stmt;
+  {  // node a
+    auto if_block = addCfgIfNode(block.get());
+    node_a_first_stmt = if_block->push_back<LocalStoreStmt>(
+        var_a, const_123);  // creates a new defintion. should be a gen; also
+                            // kills the var_a
+  }
+
+  Stmt *node_b_first_stmt;
+  {  // node b
+    auto if_block = addCfgIfNode(block.get());
+    node_b_first_stmt = if_block->push_back<LocalStoreStmt>(
+        var_a, const_123);  // creates a new defintion. should kill the previous
+                            // definition, and create a new gen
+  }
+
+  Stmt *node_c_first_stmt;
+  {  // node c
+    auto if_block = addCfgIfNode(block.get());
+    node_c_first_stmt = if_block->push_back<LocalLoadStmt>(
+        var_a);  // uses the previous definition. neither a gen nor a kill
+  }
+
+  Stmt *node_d_first_stmt;
+  {  // node d
+    auto if_block = addCfgIfNode(block.get());
+    node_d_first_stmt = if_block->push_back<LocalStoreStmt>(
+        var_a, const_123);  // creates a new defintion. should kill the previous
+                            // definition, and create a new gen
+  }
+
+  std::string ir_string;
+  irpass::print(block->get_ir_root(), &ir_string);
+  std::cout << ir_string << std::endl;
+
+  auto cfg = irpass::analysis::build_cfg(block.get());
+
+  cfg->print_graph_structure();
+  cfg->reaching_definition_analysis(false);
+  dump_reach_definition(cfg.get());
+  cfg->print_graph_structure();
+
+  auto node_a = find_node(cfg.get(), node_a_first_stmt);
+  auto node_b = find_node(cfg.get(), node_b_first_stmt);
+  auto node_c = find_node(cfg.get(), node_c_first_stmt);
+  auto node_d = find_node(cfg.get(), node_d_first_stmt);
+
+  auto node_1 = cfg->nodes[1].get();
+  ASSERT_EQ(node_1->reach_gen.size(), 1);
+  ASSERT_EQ(*node_1->reach_gen.begin(), var_a);
+  ASSERT_EQ(node_1->reach_kill.size(), 1);
+
+  ASSERT_EQ(node_a->reach_gen.size(), 1);
+  ASSERT_EQ(*node_a->reach_gen.begin(), node_a_first_stmt);
+  ASSERT_EQ(node_a->reach_kill.size(), 1);
+
+  ASSERT_EQ(node_b->reach_gen.size(), 1);
+  ASSERT_EQ(node_b->reach_kill.size(), 1);
+  ASSERT_EQ(*node_b->reach_gen.begin(), node_b_first_stmt);
+  ASSERT_EQ(*node_b->reach_kill.begin(), node_a_first_stmt);
+
+  ASSERT_EQ(node_c->reach_gen.size(), 0);
+  ASSERT_EQ(node_c->reach_kill.size(), 0);
+
+  ASSERT_EQ(node_d->reach_gen.size(), 1);
+  ASSERT_EQ(*node_d->reach_gen.begin(), var_a);
+  ASSERT_EQ(node_d->reach_kill.size(), 1);
+  ASSERT_EQ(*node_d->reach_kill.begin(), var_a);
+}
+
 TEST(ControlFlowGraph, live_variable_analysis_gen_kill_101) {
   auto block = std::make_unique<Block>();
   // this causes a kill; I'm not sure on what basis 🤔 There is no assignment
@@ -284,26 +363,26 @@ TEST(ControlFlowGraph, live_variable_analysis_gen_kill_101) {
   auto const_123 =
       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 123));
 
-  Stmt *block_a_first_stmt;
-  {  // block a
+  Stmt *node_a_first_stmt;
+  {  // node a
     auto if_block = addCfgIfNode(block.get());
-    block_a_first_stmt = if_block->push_back<LocalLoadStmt>(
+    node_a_first_stmt = if_block->push_back<LocalLoadStmt>(
         var_a);  // should cause a gen ("used (load) before any assignment, in
                  // same basic block")
   }
 
-  Stmt *block_b_first_stmt;
-  {  // block b
+  Stmt *node_b_first_stmt;
+  {  // node b
     auto if_block = addCfgIfNode(block.get());
-    block_b_first_stmt = if_block->push_back<LocalStoreStmt>(
+    node_b_first_stmt = if_block->push_back<LocalStoreStmt>(
         var_a,
         const_123);  // should cause a kill ("assigned (store) in a block")
   }
 
-  Stmt *block_c_first_stmt;
-  {  // block c
+  Stmt *node_c_first_stmt;
+  {  // node c
     auto if_block = addCfgIfNode(block.get());
-    block_c_first_stmt = if_block->push_back<LocalLoadStmt>(
+    node_c_first_stmt = if_block->push_back<LocalLoadStmt>(
         var_a);  // should cause a gen ("used (load) before any assignment, in
                  // same basic block")
     if_block->push_back<LocalStoreStmt>(
@@ -323,22 +402,22 @@ TEST(ControlFlowGraph, live_variable_analysis_gen_kill_101) {
   dump_live_definition(cfg.get());
   cfg->print_graph_structure();
 
-  auto block_a_node = find_node(cfg.get(), block_a_first_stmt);
-  auto block_b_node = find_node(cfg.get(), block_b_first_stmt);
-  auto block_c_node = find_node(cfg.get(), block_c_first_stmt);
+  auto node_a = find_node(cfg.get(), node_a_first_stmt);
+  auto node_b = find_node(cfg.get(), node_b_first_stmt);
+  auto node_c = find_node(cfg.get(), node_c_first_stmt);
 
-  ASSERT_EQ(block_a_node->live_gen.size(), 1);
-  ASSERT_EQ(*block_a_node->live_gen.begin(), var_a);
-  ASSERT_EQ(block_a_node->live_kill.size(), 0);
+  ASSERT_EQ(node_a->live_gen.size(), 1);
+  ASSERT_EQ(*node_a->live_gen.begin(), var_a);
+  ASSERT_EQ(node_a->live_kill.size(), 0);
 
-  ASSERT_EQ(block_b_node->live_gen.size(), 0);
-  ASSERT_EQ(block_b_node->live_kill.size(), 1);
-  ASSERT_EQ(*block_b_node->live_kill.begin(), var_a);
+  ASSERT_EQ(node_b->live_gen.size(), 0);
+  ASSERT_EQ(node_b->live_kill.size(), 1);
+  ASSERT_EQ(*node_b->live_kill.begin(), var_a);
 
-  ASSERT_EQ(block_c_node->live_gen.size(), 1);
-  ASSERT_EQ(*block_c_node->live_gen.begin(), var_a);
-  ASSERT_EQ(block_c_node->live_kill.size(), 1);
-  ASSERT_EQ(*block_c_node->live_kill.begin(), var_a);
+  ASSERT_EQ(node_c->live_gen.size(), 1);
+  ASSERT_EQ(*node_c->live_gen.begin(), var_a);
+  ASSERT_EQ(node_c->live_kill.size(), 1);
+  ASSERT_EQ(*node_c->live_kill.begin(), var_a);
 }
 
 TEST(ControlFlowGraph, live_variable_analysis_progressive_death) {
