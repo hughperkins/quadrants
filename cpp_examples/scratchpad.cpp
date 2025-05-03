@@ -4,9 +4,37 @@
 #include "taichi/ir/statements.h"
 #include "taichi/program/program.h"
 
+using namespace taichi;
+using namespace lang;
+void writeResult(Block *block, int idx, Stmt *value) {
+  auto arg0LoadStmt = block->push_back<ArgLoadStmt>(
+      ArgLoadStmt({0},
+                  TypeFactory::get_instance().get_ndarray_struct_type(
+                      get_data_type<int>(), 1),
+                  /*is_ptr=*/true,
+                  /*create_load=*/false,
+                  /*arg_depth=*/0));
+  auto idx_stmt =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, idx));
+  auto extptr = std::unique_ptr<ExternalPtrStmt>(
+      new ExternalPtrStmt(arg0LoadStmt, {idx_stmt}, 1, {}, false));
+  auto arg0Ptr = block->insert(std::move(extptr));
+  auto globalStore0 =
+      std::unique_ptr<GlobalStoreStmt>(new GlobalStoreStmt(arg0Ptr, value));
+  block->insert(std::move(globalStore0));
+}
+
+void writeIR(Block *block) {
+  auto const_123 =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 123));
+  auto const_555 =
+      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 555));
+
+  writeResult(block, 1, const_123);
+  writeResult(block, 4, const_555);
+}
+
 int main() {
-  using namespace taichi;
-  using namespace lang;
   auto program = Program(host_arch());
   program.get_program_impl()->config->opt_level = 0;
   program.get_program_impl()->config->external_optimization_level = 0;
@@ -17,24 +45,7 @@ int main() {
   std::unique_ptr<Kernel> kernel_ret;
 
   auto block = std::make_unique<Block>();
-  auto const_2 =
-      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 2));
-  auto const_123 =
-      block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 555));
-  auto arg0LoadStmt = block->push_back<ArgLoadStmt>(
-      ArgLoadStmt({0},
-                  TypeFactory::get_instance().get_ndarray_struct_type(
-                      get_data_type<int>(), 1),
-                  /*is_ptr=*/true,
-                  /*create_load=*/false,
-                  /*arg_depth=*/0));
-
-  auto extptr = std::unique_ptr<ExternalPtrStmt>(
-      new ExternalPtrStmt(arg0LoadStmt, {const_2}, 1, {}, false));
-  auto arg0Ptr = block->insert(std::move(extptr));
-  auto globalStore0 =
-      std::unique_ptr<GlobalStoreStmt>(new GlobalStoreStmt(arg0Ptr, const_123));
-  block->insert(std::move(globalStore0));
+  writeIR(block.get());
 
   kernel_ret = std::make_unique<Kernel>(program, block.release(), "ret");
   kernel_ret->insert_ndarray_param(get_data_type<int>(), /*total_dim=*/1);
