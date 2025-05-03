@@ -51,8 +51,10 @@ int main() {
   std::cout << "kernel ret " << kernel_ret->ret_type << std::endl;
 
   auto ctx_ret = kernel_ret->make_launch_context();
+  std::cout << "ctx result buffer " << ctx_ret.result_buffer_size << std::endl;
   const auto &compiled_kernel_data =
       program.compile_kernel(config, program.get_device_caps(), *kernel_ret);
+  program.materialize_runtime();
   program.launch_kernel(compiled_kernel_data, ctx_ret);
   std::cout << "res " << program.fetch_result<int>(0) << std::endl;
 }
