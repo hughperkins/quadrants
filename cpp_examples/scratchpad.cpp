@@ -33,10 +33,7 @@ int main() {
   std::vector<int> elementShape;
   auto extptr = std::unique_ptr<ExternalPtrStmt>(
       new ExternalPtrStmt(arg0LoadStmt, indices, 1, elementShape, false));
-  std::cout << " extptr num ops " << extptr->num_operands() << std::endl;
   auto arg0Ptr = block->insert(std::move(extptr));
-  std::cout << (void *)arg0Ptr << std::endl;
-  std::cout << "arg0Ptr num operands " << arg0Ptr->num_operands() << std::endl;
   auto globalStore0 =
       std::unique_ptr<GlobalStoreStmt>(new GlobalStoreStmt(arg0Ptr, const_123));
   block->insert(std::move(globalStore0));
