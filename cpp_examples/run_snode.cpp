@@ -2,7 +2,7 @@
 #include "taichi/ir/statements.h"
 #include "taichi/program/program.h"
 
-void run_snode() {
+int main() {
   /*
   import taichi as ti, numpy as np
   ti.init()
@@ -39,7 +39,11 @@ void run_snode() {
 
   using namespace taichi;
   using namespace lang;
-  auto program = Program(Arch::x64);
+  // std::cout << "arch = " << (int)arch << std::endl;
+  auto program = Program(host_arch());
+  program.get_program_impl()->config->opt_level = 0;
+  program.get_program_impl()->config->advanced_optimization = false;
+  program.get_program_impl()->config->print_ir = true;
   const auto &config = program.compile_config();
   /*CompileConfig config_print_ir;
   config_print_ir.print_ir = true;
@@ -102,55 +106,61 @@ void run_snode() {
     kernel_ret = std::make_unique<Kernel>(program, builder.extract_ir(), "ret");
   }
 
-  {
-    /*
-    @ti.kernel
-    def ext(ext: ti.ext_arr()):
-      for index in place:
-        ext[index] = place[index];
-    # ext = place.to_numpy()
-    */
-    IRBuilder builder;
-    auto *loop = builder.create_struct_for(pointer, 0, 4);
-    {
-      auto _ = builder.get_loop_guard(loop);
-      auto *index = builder.get_loop_index(loop);
-      auto *ext = builder.create_external_ptr(
-          builder.create_arg_load({0}, PrimitiveType::i32, true, 0), {index});
-      auto *place_index =
-          builder.create_global_load(builder.create_global_ptr(place, {index}));
-      builder.create_global_store(ext, place_index);
-    }
+  // {
+  //   /*
+  //   @ti.kernel
+  //   def ext(ext: ti.ext_arr()):
+  //     for index in place:
+  //       ext[index] = place[index];
+  //   # ext = place.to_numpy()
+  //   */
+  //   IRBuilder builder;
+  //   auto *loop = builder.create_struct_for(pointer, 0, 4);
+  //   {
+  //     auto _ = builder.get_loop_guard(loop);
+  //     auto *index = builder.get_loop_index(loop);
+  //     auto *ext = builder.create_external_ptr(
+  //         builder.create_arg_load({0}, PrimitiveType::i32, true, 0),
+  //         {index});
+  //     auto *place_index =
+  //         builder.create_global_load(builder.create_global_ptr(place,
+  //         {index}));
+  //     builder.create_global_store(ext, place_index);
+  //   }
 
-    kernel_ext = std::make_unique<Kernel>(program, builder.extract_ir(), "ext");
-    kernel_ext->insert_arr_param(get_data_type<int>(), /*total_dim=*/1, {n});
-    kernel_ext->finalize_params();
-  }
+  //   kernel_ext = std::make_unique<Kernel>(program, builder.extract_ir(),
+  //   "ext"); kernel_ext->insert_arr_param(get_data_type<int>(),
+  //   /*total_dim=*/1, {n}); kernel_ext->finalize_params();
+  // }
 
   auto ctx_init = kernel_init->make_launch_context();
   auto ctx_ret = kernel_ret->make_launch_context();
-  auto ctx_ext = kernel_ext->make_launch_context();
-  std::vector<int> ext_arr(n);
-  ctx_ext.set_arg_external_array_with_shape({0}, taichi::uint64(ext_arr.data()),
-                                            n, {n});
+  // auto ctx_ext = kernel_ext->make_launch_context();
+  // std::vector<int> ext_arr(n);
+  // ctx_ext.set_arg_external_array_with_shape({0},
+  // taichi::uint64(ext_arr.data()),
+  //                                           n, {n});
 
   {
     const auto &compiled_kernel_data =
         program.compile_kernel(config, program.get_device_caps(), *kernel_init);
     program.launch_kernel(compiled_kernel_data, ctx_init);
+    std::cout << "afte running kernel_init ======================" << std::endl;
   }
   {
     const auto &compiled_kernel_data =
         program.compile_kernel(config, program.get_device_caps(), *kernel_ret);
     program.launch_kernel(compiled_kernel_data, ctx_ret);
-    std::cout << program.fetch_result<int>(0) << std::endl;
+    std::cout << "kernel ret result ================= "
+              << program.fetch_result<int>(0) << std::endl;
   }
-  {
-    const auto &compiled_kernel_data =
-        program.compile_kernel(config, program.get_device_caps(), *kernel_ext);
-    program.launch_kernel(compiled_kernel_data, ctx_ext);
-    for (int i = 0; i < n; i++)
-      std::cout << ext_arr[i] << " ";
-    std::cout << std::endl;
-  }
+  // {
+  //   const auto &compiled_kernel_data =
+  //       program.compile_kernel(config, program.get_device_caps(),
+  //       *kernel_ext);
+  //   program.launch_kernel(compiled_kernel_data, ctx_ext);
+  //   for (int i = 0; i < n; i++)
+  //     std::cout << ext_arr[i] << " ";
+  //   std::cout << std::endl;
+  // }
 }
