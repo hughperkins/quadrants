@@ -326,8 +326,6 @@ TEST(ControlFlowGraph, live_variable_analysis_gen_kill_101) {
   auto block_c_node = find_node(cfg.get(), block_c_first_stmt);
 
   ASSERT_EQ(block_a_node->live_gen.size(), 1);
-  // std::cout << (*block_a_node->live_gen.begin())->name() << std::endl;
-  // std::cout << (block_a_first_stmt)->name() << std::endl;
   ASSERT_EQ(*block_a_node->live_gen.begin(), var_a);
   ASSERT_EQ(block_a_node->live_kill.size(), 0);
 
@@ -339,14 +337,6 @@ TEST(ControlFlowGraph, live_variable_analysis_gen_kill_101) {
   ASSERT_EQ(*block_c_node->live_gen.begin(), var_a);
   ASSERT_EQ(block_c_node->live_kill.size(), 1);
   ASSERT_EQ(*block_c_node->live_kill.begin(), var_a);
-
-  // for (auto i = 0; i < cfg->size(); i++) {
-  //   std::cout << "Node " << i << ":" << std::endl;
-  //   if (!cfg->nodes[i]->empty() && cfg->nodes[i]->block->statements.size() >
-  //   0) {
-  //     std::cout << cfg->nodes[i]->block->statements[0]->name() << std::endl;
-  //   }
-  // }
 }
 
 TEST(ControlFlowGraph, live_variable_analysis_progressive_death) {
