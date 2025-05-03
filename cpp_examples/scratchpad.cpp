@@ -46,6 +46,7 @@ void writeIR(Block *block) {
 
   writeResult(block, 1, const_123);
   writeResult(block, 4, const_555);
+  writeResult(block, 5, matrixInit);
 }
 
 int main() {
