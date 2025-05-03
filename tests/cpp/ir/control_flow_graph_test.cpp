@@ -265,29 +265,43 @@ Block *addCfgIfNode(Block *block) {
   return true_block;
 }
 
+CFGNode *find_node(ControlFlowGraph *cfg, Stmt *stmt) {
+  for (auto i = 0; i < cfg->size(); i++) {
+    auto node = cfg->nodes[i].get();
+    if (!node->empty() && node->block->statements.size() > 0 &&
+        node->block->statements[0].get() == stmt) {
+      return node;
+    }
+  }
+  return nullptr;
+}
+
 TEST(ControlFlowGraph, live_variable_analysis_gen_kill_101) {
   auto block = std::make_unique<Block>();
   auto var_a = block->push_back<AllocaStmt>(PrimitiveType::i32);
   auto const_123 =
       block->push_back<ConstStmt>(TypedConstant(PrimitiveType::i32, 123));
 
-  {
+  Stmt *block_a_first_stmt;
+  {  // block a
     auto if_block = addCfgIfNode(block.get());
-    if_block->push_back<LocalLoadStmt>(
+    block_a_first_stmt = if_block->push_back<LocalLoadStmt>(
         var_a);  // should cause a gen ("used (load) before any assignment, in
                  // same basic block")
   }
 
-  {
+  Stmt *block_b_first_stmt;
+  {  // block b
     auto if_block = addCfgIfNode(block.get());
-    if_block->push_back<LocalStoreStmt>(
+    block_b_first_stmt = if_block->push_back<LocalStoreStmt>(
         var_a,
         const_123);  // should cause a kill ("assigned (store) in a block")
   }
 
-  {
+  Stmt *block_c_first_stmt;
+  {  // block c
     auto if_block = addCfgIfNode(block.get());
-    if_block->push_back<LocalLoadStmt>(
+    block_c_first_stmt = if_block->push_back<LocalLoadStmt>(
         var_a);  // should cause a gen ("used (load) before any assignment, in
                  // same basic block")
     if_block->push_back<LocalStoreStmt>(
@@ -300,11 +314,39 @@ TEST(ControlFlowGraph, live_variable_analysis_gen_kill_101) {
   std::cout << ir_string << std::endl;
 
   auto cfg = irpass::analysis::build_cfg(block.get());
+
   cfg->print_graph_structure();
   ControlFlowGraph::LiveVarAnalysisConfig config_opt;
   cfg->live_variable_analysis(false, config_opt);
   dump_live_definition(cfg.get());
   cfg->print_graph_structure();
+
+  auto block_a_node = find_node(cfg.get(), block_a_first_stmt);
+  auto block_b_node = find_node(cfg.get(), block_b_first_stmt);
+  auto block_c_node = find_node(cfg.get(), block_c_first_stmt);
+
+  ASSERT_EQ(block_a_node->live_gen.size(), 1);
+  // std::cout << (*block_a_node->live_gen.begin())->name() << std::endl;
+  // std::cout << (block_a_first_stmt)->name() << std::endl;
+  ASSERT_EQ(*block_a_node->live_gen.begin(), var_a);
+  ASSERT_EQ(block_a_node->live_kill.size(), 0);
+
+  ASSERT_EQ(block_b_node->live_gen.size(), 0);
+  ASSERT_EQ(block_b_node->live_kill.size(), 1);
+  ASSERT_EQ(*block_b_node->live_kill.begin(), var_a);
+
+  ASSERT_EQ(block_c_node->live_gen.size(), 1);
+  ASSERT_EQ(*block_c_node->live_gen.begin(), var_a);
+  ASSERT_EQ(block_c_node->live_kill.size(), 1);
+  ASSERT_EQ(*block_c_node->live_kill.begin(), var_a);
+
+  // for (auto i = 0; i < cfg->size(); i++) {
+  //   std::cout << "Node " << i << ":" << std::endl;
+  //   if (!cfg->nodes[i]->empty() && cfg->nodes[i]->block->statements.size() >
+  //   0) {
+  //     std::cout << cfg->nodes[i]->block->statements[0]->name() << std::endl;
+  //   }
+  // }
 }
 
 TEST(ControlFlowGraph, live_variable_analysis_progressive_death) {
