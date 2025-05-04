@@ -28,52 +28,37 @@ void writeResult(Block *block, int idx, Stmt *value) {
   block->insert(std::move(globalStore0));
 }
 
-// std::unique_ptr<IRNode> minimal_prepare_ir(const Kernel &kernel) {
-//     auto ir = irpass::analysis::clone(kernel.ir.get());
-
-//     // Do minimal transformations required for code generation
-//     irpass::type_check(ir.get(), kernel.get_program().compile_config());
-//     irpass::offload(ir.get(), kernel.get_program().compile_config());
-//     irpass::flag_access(ir.get());
-
-//     return ir;
-// }
-
 std::unique_ptr<IRNode> minimal_prepare_ir(const Kernel &kernel,
                                            const CompileConfig &config) {
   auto ir = irpass::analysis::clone(kernel.ir.get());
 
-  // For compatibility with what KernelCompiler expects, we need some basic
-  // transforms But only the minimal required ones
-
-  // First, let's create an offloaded block
+  // Create offloaded task structure
   auto root = ir.get();
   if (root->is<Block>()) {
     auto block = root->as<Block>();
-    // Create an OffloadedStmt that contains the original block
     auto offloaded = std::make_unique<OffloadedStmt>(
         OffloadedStmt::TaskType::serial, config.arch,
-        const_cast<Kernel *>(
-            &kernel)  // Need to cast away const since OffloadedStmt doesn't
-                      // accept const Kernel*
-    );
+        const_cast<Kernel *>(&kernel));
     offloaded->body = std::make_unique<Block>();
 
-    // Move all statements from the root block to the offloaded block body
+    // Move all statements to the offloaded block
     for (int i = 0; i < block->size(); i++) {
       offloaded->body->insert(std::move(block->statements[i]));
     }
     block->statements.clear();
-
-    // Add the offloaded task to the root block
     block->insert(std::move(offloaded));
   }
 
-  // Set types for statements that need it
+  // Set return types for all statements to avoid crashes
   irpass::analysis::gather_statements(ir.get(), [](Stmt *stmt) {
     if (stmt->ret_type == DataType()) {
       if (stmt->is<ConstStmt>()) {
         stmt->ret_type = stmt->as<ConstStmt>()->val.dt;
+      } else if (stmt->is<UnaryOpStmt>()) {
+        auto unary = stmt->as<UnaryOpStmt>();
+        if (unary->op_type == UnaryOpType::cast_value) {
+          stmt->ret_type = unary->cast_type;
+        }
       }
     }
     return false;
@@ -109,12 +94,14 @@ void writeIR(Block *block) {
   auto cast1 = std::unique_ptr<UnaryOpStmt>(
       new UnaryOpStmt(UnaryOpType::cast_value, const_555));
   cast1->cast_type = type_factory.get_primitive_type(PrimitiveTypeID::i32);
+  cast1->ret_type = cast1->cast_type;
   auto cast1b = block->insert(std::move(cast1));
   writeResult(block, 9, cast1b);
 
   auto cast2 = std::unique_ptr<UnaryOpStmt>(
       new UnaryOpStmt(UnaryOpType::cast_value, matrixInit));
   cast2->cast_type = type_factory.get_primitive_type(PrimitiveTypeID::f32);
+  cast2->ret_type = cast2->cast_type;
   auto cast2b = block->insert(std::move(cast2));
   writeResult(block, 10, cast2b);
 }
