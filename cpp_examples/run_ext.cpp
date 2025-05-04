@@ -1,5 +1,3 @@
-#include <memory>
-
 #include "taichi/ir/ir_builder.h"
 #include "taichi/ir/statements.h"
 #include "taichi/program/program.h"
@@ -42,10 +40,6 @@ int main() {
   using namespace taichi;
   using namespace lang;
   auto program = Program(host_arch());
-  program.get_program_impl()->config->opt_level = 0;
-  program.get_program_impl()->config->external_optimization_level = 0;
-  program.get_program_impl()->config->advanced_optimization = false;
-  program.get_program_impl()->config->print_ir = true;
   const auto &config = program.compile_config();
 
   int n = 10;
@@ -56,40 +50,45 @@ int main() {
   place->dt = PrimitiveType::i32;
   program.add_snode_tree(std::unique_ptr<SNode>(root), /*compile_only=*/false);
 
-  std::unique_ptr<Kernel> kernel_ret;
+  std::unique_ptr<Kernel> kernel_ext;
 
   {
     /*
     @ti.kernel
-    def ret():
-      sum = 0
+    def ext(ext: ti.ext_arr()):
       for index in place:
-        sum = sum + place[index];
-      return sum
+        ext[index] = place[index];
+    # ext = place.to_numpy()
     */
     IRBuilder builder;
-    std::cout << "1" << std::endl;
-    auto *sum = builder.create_local_var(PrimitiveType::i32);
     auto *loop = builder.create_struct_for(pointer, 0, 4);
     {
       auto _ = builder.get_loop_guard(loop);
       auto *index = builder.get_loop_index(loop);
-      auto *sum_old = builder.create_local_load(sum);
+      auto *ext = builder.create_external_ptr(
+          builder.create_arg_load({0}, PrimitiveType::i32, true, 0), {index});
       auto *place_index =
           builder.create_global_load(builder.create_global_ptr(place, {index}));
-      builder.create_local_store(sum, builder.create_add(sum_old, place_index));
+      builder.create_global_store(ext, place_index);
     }
-    std::cout << "2" << std::endl;
-    builder.create_return(builder.create_local_load(sum));
 
-    kernel_ret = std::make_unique<Kernel>(program, builder.extract_ir(), "ret");
+    kernel_ext = std::make_unique<Kernel>(program, builder.extract_ir(), "ext");
+    kernel_ext->insert_arr_param(get_data_type<int>(),
+                                 /*total_dim=*/1, {n});
+    kernel_ext->finalize_params();
   }
-  auto ctx_ret = kernel_ret->make_launch_context();
+
+  auto ctx_ext = kernel_ext->make_launch_context();
+  std::vector<int> ext_arr(n);
+  ctx_ext.set_arg_external_array_with_shape({0}, taichi::uint64(ext_arr.data()),
+                                            n, {n});
 
   {
     const auto &compiled_kernel_data =
-        program.compile_kernel(config, program.get_device_caps(), *kernel_ret);
-    program.launch_kernel(compiled_kernel_data, ctx_ret);
-    std::cout << "res " << program.fetch_result<int>(0) << std::endl;
+        program.compile_kernel(config, program.get_device_caps(), *kernel_ext);
+    program.launch_kernel(compiled_kernel_data, ctx_ext);
+    for (int i = 0; i < n; i++)
+      std::cout << ext_arr[i] << " ";
+    std::cout << std::endl;
   }
 }

@@ -5,6 +5,39 @@
 #include "taichi/program/program.h"
 
 int main() {
+  /*
+import taichi as ti, numpy as np
+ti.init()
+#ti.init(print_ir = True)
+
+n = 10
+place = ti.field(dtype = ti.i32)
+ti.root.pointer(ti.i, n).place(place)
+
+@ti.kernel
+def init():
+    for index in range(n):
+        place[index] = index
+
+@ti.kernel
+def ret() -> ti.i32:
+    sum = 0
+    for index in place:
+        sum = sum + place[index]
+    return sum
+
+@ti.kernel
+def ext(ext_arr: ti.ext_arr()):
+    for index in place:
+        ext_arr[index] = place[index]
+
+init()
+print(ret())
+ext_arr = np.zeros(n, np.int32)
+ext(ext_arr)
+#ext_arr = place.to_numpy()
+print(ext_arr)
+*/
   using namespace taichi;
   using namespace lang;
   auto program = Program(host_arch());
