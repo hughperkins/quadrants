@@ -114,6 +114,22 @@ int main() {
   program.get_program_impl()->config->print_ir = true;
   const auto &config = program.compile_config();
 
+  // we have to materialize runtime before creating snode
+  // (otherwise, crash 😅)
+  program.materialize_runtime();
+
+  auto snode_rw_accessors_bank = program.get_snode_rw_accessors_bank();
+
+  const int snode_n = 10;
+  auto *snode_root =
+      new SNode(0, SNodeType::root, program.get_snode_to_fields(),
+                &snode_rw_accessors_bank);
+  auto *snode_pointer = &snode_root->pointer(Axis(0), snode_n);
+  auto *snode_place = &snode_pointer->insert_children(SNodeType::place);
+  snode_place->dt = PrimitiveType::f32;
+  program.add_snode_tree(std::unique_ptr<SNode>(snode_root),
+                         /*compile_only=*/false);
+
   std::unique_ptr<Kernel> kernel_ret;
 
   auto block = std::make_unique<Block>();
@@ -141,16 +157,52 @@ int main() {
   //   const auto &compiled_kernel_data =
   //       program.compile_kernel(config, program.get_device_caps(),
   //       *kernel_ret);
-  program.materialize_runtime();
 
-  const int size = 20;
-  auto array = std::make_unique<float[]>(size);
+  const int array_size = 20;
+  auto array = std::make_unique<float[]>(array_size);
 
   ctx_ret.set_arg_external_array_with_shape(
-      /*arg_id=*/{0}, (uint64)array.get(), size, {size});
+      /*arg_id=*/{0}, (uint64)array.get(), array_size, {array_size});
 
   program.launch_kernel(*compiled_kernel_data, ctx_ret);
-  for (int i = 0; i < size; i++) {
+  std::cout << "array:" << std::endl;
+  for (int i = 0; i < array_size; i++) {
     std::cout << "array[" << i << "] = " << array[i] << std::endl;
+  }
+  std::cout << "snode:" << std::endl;
+  std::cout << "snode_root " << snode_root->get_name() << std::endl;
+  std::cout << "snode_pointer " << snode_pointer->get_name() << std::endl;
+  std::cout << "snode_place " << snode_place->get_name() << std::endl;
+  std::cout << "snode_place tree id " << snode_place->get_snode_tree_id()
+            << std::endl;
+
+  program.materialize_runtime();
+
+  auto field = program.create_ndarray(DataType::f32, {10});
+
+  // Fill the field with 2.0f
+  field.fill(2.0f);
+
+  // --- Create Expr objects ---
+  // (A) From field access
+  Expr element = field.read(Expr(0));  // Equivalent to `field[0]` in Python
+
+  // (B) From literals
+  Expr literal = Expr(3.14f);  // A constant float expression
+
+  // (C) From arithmetic operations
+  Expr sum = element + literal;  // Represents `field[0] + 3.14f`
+
+  // (D) From Taichi functions
+  // Expr sine = expr_sin(sum); // Represents `sin(field[0] + 3.14f)`
+
+  snode_place->write_float({0}, 1.23f);
+  std::cout << " wrote float" << std::endl;
+  // std::cout << "snode_place " << snode_place->read_float(2) << std::endl;
+  for (int i = 0; i < snode_n; i++) {
+    // std::cout << "snode_place[" << i << "] = " ;
+    // auto val = snode_place->get_name << std::endl;
+    std::cout << "snode_place[" << i << "] = " << snode_place->read_float({i})
+              << std::endl;
   }
 }
