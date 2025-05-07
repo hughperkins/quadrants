@@ -62,6 +62,7 @@ add_taichi_example(run_ext)
 add_taichi_example(scratchpad)
 add_taichi_example(autograd)
 add_taichi_example(aot_save)
+add_taichi_example(run_snode)
 # add_taichi_example(expressions)
 
 
