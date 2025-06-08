@@ -551,6 +551,12 @@ struct PreallocatedMemoryChunk {
   std::size_t preallocated_size = 0;
 };
 
+struct ShapeInfo {
+  i32 strides[taichi_max_num_indices];
+};
+// STRUCT_FIELD_ARRAY(ShapeInfo, shape);
+// STRUCT_FIELD(ShapeInfo, num_active_indices);
+
 struct LLVMRuntime {
   PreallocatedMemoryChunk runtime_objects_chunk;
   PreallocatedMemoryChunk runtime_memory_chunk;
@@ -563,6 +569,7 @@ struct LLVMRuntime {
 
   Ptr roots[kMaxNumSnodeTreesLlvm];
   size_t root_mem_sizes[kMaxNumSnodeTreesLlvm];
+  ShapeInfo snode_shapes[kMaxNumSnodeTreesLlvm];
 
   Ptr thread_pool;
   parallel_for_type parallel_for;
@@ -619,6 +626,7 @@ STRUCT_FIELD_ARRAY(LLVMRuntime, element_lists);
 STRUCT_FIELD_ARRAY(LLVMRuntime, node_allocators);
 STRUCT_FIELD_ARRAY(LLVMRuntime, roots);
 STRUCT_FIELD_ARRAY(LLVMRuntime, root_mem_sizes);
+STRUCT_FIELD_ARRAY(LLVMRuntime, snode_shapes);
 STRUCT_FIELD(LLVMRuntime, temporaries);
 STRUCT_FIELD(LLVMRuntime, assert_failed);
 STRUCT_FIELD(LLVMRuntime, host_printf);
