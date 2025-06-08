@@ -388,6 +388,30 @@ DevicePtr LlvmRuntimeExecutor::get_snode_tree_device_ptr(int tree_id) {
   return tree_alloc.get_ptr();
 }
 
+struct ShapeInfo {
+  int strides[taichi_max_num_indices];
+};
+
+// void populate_shape_info(const LlvmOfflineCache::FieldCacheData::SNodeCacheData &snode_meta, struct ShapeInfo *shapeInfo) {
+//   // int acc = 1;
+//   // auto numIndices = snode_meta.nu;
+//   // for (int j = numIndices - 1; j >= 0; j--) {
+//   //   shapeInfo->strides[j] = acc;
+//   //   acc *= snode_meta.shape[j];
+//   // }
+//   // for (int j = taichi_max_num_indices - 1; j >= 0; j--) {
+//   //   shapeInfo->strides[j] = acc;
+//   //   acc *= snode_meta.shape[j];
+//   // }
+// }
+
+void LlvmRuntimeExecutor::initialize_snode_shape(int snodeId, struct ShapeInfo shapeInfo) {
+  auto *const runtime_jit = get_runtime_jit_module();
+  std::cout << "setting snode_shape on id " << snodeId << std::endl;
+  runtime_jit->call<void *, int, struct ShapeInfo>("LLVMRuntime_set_snode_shapes", llvm_runtime_,
+                                    snodeId, shapeInfo);
+}
+
 void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
     const LlvmOfflineCache::FieldCacheData &field_cache_data,
     uint64 *result_buffer) {

@@ -42,6 +42,8 @@ class LlvmRuntimeExecutor {
   void materialize_runtime(KernelProfilerBase *profiler,
                            uint64 **result_buffer_ptr);
 
+  void initialize_snode_shape(int snodeId, struct ShapeInfo shapeInfo);
+                           
   // SNodeTree Allocation
   void initialize_llvm_runtime_snodes(
       const LlvmOfflineCache::FieldCacheData &field_cache_data,
