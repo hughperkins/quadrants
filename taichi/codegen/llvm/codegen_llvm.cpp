@@ -1902,6 +1902,7 @@ void TaskCodeGenLLVM::visit(ExternalPtrStmt *stmt) {
   auto dt = stmt->ret_type.ptr_removed();
   int num_element_indices =
       dt->is<TensorType>() ? 0 : stmt->element_shape.size();
+  std::cout << "TaskCodeGenLLVM::visit(ExternalPtrStmt *) " << stmt->name() << std::endl;
 
   /*
     ExternalPtrStmt can be divided into "outter" and "inner" parts.
@@ -1920,6 +1921,7 @@ void TaskCodeGenLLVM::visit(ExternalPtrStmt *stmt) {
   const size_t element_shape_index_offset = num_array_args;
 
   for (int i = 0; i < num_array_args; i++) {
+    std::cout << "  i=" << i << std::endl;
     auto raw_arg = builder->CreateGEP(
         struct_type, llvm_val[stmt->base_ptr],
         {tlctx->get_constant(0),

@@ -50,6 +50,12 @@ class LowerAccess : public IRVisitor {
               bool lower_atomic_ptr)
       : kernel_forces_no_activate(kernel_forces_no_activate),
         lower_atomic_ptr(lower_atomic_ptr) {
+        std::cout << "\n\n******************" << std::endl;
+      std::cout << "LowerAccess::LowerAccess() " << std::endl;
+      // Print each snode in kernel_forces_no_activate
+      for (auto *snode : kernel_forces_no_activate) {
+        std::cout << "  kernel_forces_no_activate snode: " << snode->name << std::endl;
+      }
     // TODO: change this to false
     allow_undefined_visitor = true;
     current_struct_for = nullptr;
@@ -90,6 +96,9 @@ class LowerAccess : public IRVisitor {
   VecStatement lower_ptr(GlobalPtrStmt *ptr,
                          bool activate,
                          SNodeOpType snode_op = SNodeOpType::undefined) {
+    std::cout << "LowerAccess::lower_ptr " << ptr->snode->name << std::endl;
+    std::cout << "  original ptr: " << std::endl;
+    irpass::print(ptr);
     VecStatement lowered;
     if (snode_op == SNodeOpType::is_active) {
       // For ti.is_active
@@ -102,6 +111,8 @@ class LowerAccess : public IRVisitor {
     lowerer.run();
     TI_ASSERT(lowered.size() > 0);
     auto lowered_ptr = lowered.back().get();
+    // Print each statement in lowered
+    std::cout << "  lowered statements:" << std::endl;
     if (ptr->is_bit_vectorized) {
       // if the global ptr is bit vectorized, we start from the place snode
       // and find the parent quant array snode, use its physical type
@@ -154,6 +165,8 @@ class LowerAccess : public IRVisitor {
   }
 
   void visit(SNodeOpStmt *stmt) override {
+    std::cout << "LowerAccess::visit(SNodeOpStmt) " << stmt->snode->name
+              << std::endl;
     if (stmt->ptr->is<GlobalPtrStmt>()) {
       auto global_ptr = stmt->ptr->as<GlobalPtrStmt>();
       if (global_ptr->is_cell_access) {
@@ -198,6 +211,9 @@ class LowerAccess : public IRVisitor {
   static bool run(IRNode *node,
                   const std::vector<SNode *> &kernel_forces_no_activate,
                   bool lower_atomic) {
+      std::cout << "LowerAccess::run" << std::endl;
+      std::cout << "  run node before:" << std::endl;
+      irpass::print(node);
     LowerAccess inst(kernel_forces_no_activate, lower_atomic);
     bool modified = false;
     while (true) {
@@ -208,6 +224,8 @@ class LowerAccess : public IRVisitor {
         break;
       }
     }
+      std::cout << "  run node after:" << std::endl;
+      irpass::print(node);
     return modified;
   }
 };
@@ -231,9 +249,13 @@ Stmt *PtrLowererImpl::handle_snode_at_level(int level,
   auto *snode = snodes()[level];
   bool on_loop_tree = (snodes_on_loop_.find(snode) != snodes_on_loop_.end());
   auto *current_struct_for = la_->current_struct_for;
+  std::cout << "  handle_snode_at_level " << snode->name
+            << ", on_loop_tree = " << on_loop_tree << std::endl;
   if (on_loop_tree && current_struct_for &&
       (indices_.size() == current_struct_for->snode->num_active_indices)) {
     for (int j = 0; j < (int)indices_.size(); j++) {
+      std::cout << "   j = " << j
+                << ", index = " << indices_[j]->raw_name() << std::endl;
       auto diff = irpass::analysis::value_diff_loop_index(
           indices_[j], current_struct_for, j);
       if (!diff.linear_related()) {
@@ -277,6 +299,8 @@ Stmt *PtrLowererImpl::handle_snode_at_level(int level,
                                             /*is_bit_vectorized=*/false);
     }
   }
+  std::cout << "  lowered: " << std::endl;
+  irpass::print(lowered_->back().get());
   return last;
 }
 

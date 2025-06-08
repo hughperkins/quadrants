@@ -7,6 +7,7 @@ namespace taichi::lang {
 std::string ScratchPad::global_to_linearized_local(
     const std::vector<Stmt *> &loop_vars,
     const std::vector<Stmt *> &indices) {
+  std::cout << "ScratchPad::global_to_linearized_local" << std::endl;
   std::string ret = "";
   TI_ASSERT((int)indices.size() == dim);
   int step_size = pad_size_linear();
@@ -16,6 +17,7 @@ std::string ScratchPad::global_to_linearized_local(
     ret += fmt::format(" + ({} - {}_base - {}) * {}", indices[i]->raw_name(),
                        loop_vars[i]->raw_name(), bounds[i].low, step_size);
   }
+  std::cout << "  ret = " << ret << std::endl;
   return ret;
 }
 

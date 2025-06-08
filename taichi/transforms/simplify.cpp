@@ -158,6 +158,9 @@ class BasicBlockSimplify : public IRVisitor {
   }
 
   void visit(LinearizeStmt *stmt) override {
+    std::cout << "BasicBlockSimplify::visit(LinearizeStmt *stmt) " << stmt->raw_name()
+              << std::endl;
+    irpass::print(stmt);
     if (!stmt->inputs.empty() && stmt->inputs.back()->is<IntegerOffsetStmt>()) {
       auto previous_offset = stmt->inputs.back()->as<IntegerOffsetStmt>();
       // push forward offset
@@ -168,6 +171,9 @@ class BasicBlockSimplify : public IRVisitor {
       stmt->replace_usages_with(offset_stmt.get());
       offset_stmt->as<IntegerOffsetStmt>()->input = stmt;
       modifier.insert_after(stmt, std::move(offset_stmt));
+      std::cout << " after BasicBlockSimplify::visit(LinearizeStmt *stmt) "
+                << stmt->raw_name() << std::endl;
+    irpass::print(stmt);
       return;
     }
 
@@ -175,11 +181,15 @@ class BasicBlockSimplify : public IRVisitor {
     auto sum = Stmt::make<ConstStmt>(TypedConstant(0));
     auto stride_product = 1;
     for (int i = (int)stmt->inputs.size() - 1; i >= 0; i--) {
+      // std::cout << " simplify.cpp i = " << i << std::endl;
       auto stride_stmt = Stmt::make<ConstStmt>(TypedConstant(stride_product));
       auto mul = Stmt::make<BinaryOpStmt>(BinaryOpType::mul, stmt->inputs[i],
                                           stride_stmt.get());
       auto newsum =
           Stmt::make<BinaryOpStmt>(BinaryOpType::add, sum.get(), mul.get());
+      // irpass::print(stride_stmt.get());
+      // irpass::print(mul.get());
+      // irpass::print(newsum.get());
       modifier.insert_before(stmt, std::move(sum));
       sum = std::move(newsum);
       modifier.insert_before(stmt, std::move(stride_stmt));
@@ -217,6 +227,11 @@ class BasicBlockSimplify : public IRVisitor {
     modifier.erase(stmt);
     // get types of adds and muls
     modifier.type_check(stmt->parent, config);
+      std::cout << " at end of BasicBlockSimplify::visit(LinearizeStmt *stmt) "
+                << stmt->raw_name() << std::endl;
+    irpass::print(stmt);
+    // std::cout << "modifier: " << std::endl;
+    // irpass::print(modifier);
   }
 
   void visit(SNodeLookupStmt *stmt) override {

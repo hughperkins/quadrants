@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <array>
 
+#include "taichi/ir/transforms.h"
 #include "taichi/inc/constants.h"
 #include "taichi/ir/analysis.h"
 #include "taichi/ir/snode.h"
@@ -30,6 +31,7 @@ ScalarPointerLowerer::ScalarPointerLowerer(SNode *leaf_snode,
 }
 
 void ScalarPointerLowerer::run() {
+  std::cout << "ScalarPointerLowerer::run" << std::endl;
   std::array<int, taichi_max_num_indices> total_shape;
   total_shape.fill(1);
   for (const auto *s : snodes_) {
@@ -80,6 +82,9 @@ void ScalarPointerLowerer::run() {
     // linearize
     auto *linearized =
         lowered_->push_back<LinearizeStmt>(lowered_indices, strides);
+    std::cout << "  ScalarPointerLowerer::run: snode = " << snode->name
+              << ", linearized = " << linearized->raw_name() << std::endl;
+    irpass::print(linearized);
 
     last = handle_snode_at_level(i, linearized, last);
   }
