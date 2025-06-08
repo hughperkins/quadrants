@@ -282,6 +282,7 @@ void TaskCodeGenLLVM::emit_struct_meta_base(const std::string &name,
   common.set("max_num_elements",
              tlctx->get_constant(snode->max_num_elements()));
   common.set("context", get_context());
+  common.set("runtime", get_runtime());
 
   /*
   uint8 *(*lookup_element)(uint8 *, int i);

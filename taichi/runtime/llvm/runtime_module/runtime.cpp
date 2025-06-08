@@ -322,6 +322,7 @@ struct StructMeta {
                              int index);
 
   RuntimeContext *context;
+  LLVMRuntime *runtime;
 };
 
 STRUCT_FIELD(StructMeta, snode_id)
@@ -333,6 +334,7 @@ STRUCT_FIELD(StructMeta, from_parent_element);
 STRUCT_FIELD(StructMeta, refine_coordinates);
 STRUCT_FIELD(StructMeta, is_active);
 STRUCT_FIELD(StructMeta, context);
+STRUCT_FIELD(StructMeta, runtime);
 
 struct LLVMRuntime;
 
