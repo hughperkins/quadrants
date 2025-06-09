@@ -570,6 +570,7 @@ struct LLVMRuntime {
   Ptr roots[kMaxNumSnodeTreesLlvm];
   size_t root_mem_sizes[kMaxNumSnodeTreesLlvm];
   ShapeInfo snode_shapes[kMaxNumSnodeTreesLlvm];
+  i32 dumped_diag[kMaxNumSnodeTreesLlvm] = {0};
 
   Ptr thread_pool;
   parallel_for_type parallel_for;
@@ -627,6 +628,7 @@ STRUCT_FIELD_ARRAY(LLVMRuntime, node_allocators);
 STRUCT_FIELD_ARRAY(LLVMRuntime, roots);
 STRUCT_FIELD_ARRAY(LLVMRuntime, root_mem_sizes);
 STRUCT_FIELD_ARRAY(LLVMRuntime, snode_shapes);
+STRUCT_FIELD_ARRAY(LLVMRuntime, dumped_diag);
 STRUCT_FIELD(LLVMRuntime, temporaries);
 STRUCT_FIELD(LLVMRuntime, assert_failed);
 STRUCT_FIELD(LLVMRuntime, host_printf);
@@ -933,6 +935,7 @@ void runtime_initialize(
   auto host_printf = (host_printf_type)_host_printf;
   auto host_vsnprintf = (host_vsnprintf_type)_host_vsnprintf;
   LLVMRuntime *runtime = nullptr;
+  host_printf("runtime_initialize\n");
   Ptr preallocated_tail = preallocated_buffer + preallocated_size;
   if (preallocated_size) {
     runtime = (LLVMRuntime *)preallocated_buffer;
@@ -1003,6 +1006,9 @@ void runtime_initialize_snodes(LLVMRuntime *runtime,
                                bool all_dense) {
   // For Metal runtime, we have to make sure that both the beginning address
   // and the size of the root buffer memory are aligned to page size.
+  taichi_printf(runtime,
+                 "Allocating root buffer for root id %i SNode tree %i with size %llu at %p\n",
+                 root_id, snode_tree_id, rounded_size, ptr);
   runtime->root_mem_sizes[snode_tree_id] = rounded_size;
   runtime->roots[snode_tree_id] = ptr;
   // runtime->request_allocate_aligned ready to use
@@ -1012,6 +1018,7 @@ void runtime_initialize_snodes(LLVMRuntime *runtime,
   }
   for (int i = root_id; i < root_id + num_snodes; i++) {
     // TODO: some SNodes do not actually need an element list.
+    taichi_printf(runtime, "Creating element list for SNode {}", i);
     runtime->element_lists[i] =
         runtime->create<ListManager>(runtime, sizeof(Element), 1024 * 64);
   }
@@ -1292,6 +1299,8 @@ void clear_list(LLVMRuntime *runtime, StructMeta *parent, StructMeta *child) {
 void element_listgen_root(LLVMRuntime *runtime,
                           StructMeta *parent,
                           StructMeta *child) {
+  taichi_printf(runtime, "element_listgen_root {} -> {}", parent->snode_id,
+               child->snode_id);
   // If there's just one element in the parent list, we need to use the blocks
   // (instead of threads) to split the parent container
   auto parent_list = runtime->element_lists[parent->snode_id];
@@ -1341,6 +1350,8 @@ void element_listgen_root(LLVMRuntime *runtime,
 void element_listgen_nonroot(LLVMRuntime *runtime,
                              StructMeta *parent,
                              StructMeta *child) {
+  taichi_printf(runtime, "element_listgen_nonroot {} -> {}", parent->snode_id,
+               child->snode_id);
   auto parent_list = runtime->element_lists[parent->snode_id];
   int num_parent_elements = parent_list->size();
   auto child_list = runtime->element_lists[child->snode_id];

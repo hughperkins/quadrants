@@ -189,6 +189,7 @@ def _process_args(self, args, kwargs):
             raise TaichiSyntaxError(f"Unexpected argument '{key}'.")
 
     for i, arg in enumerate(ret):
+        # print('i', i, 'arg', arg)
         if arg is inspect.Parameter.empty:
             if self.arguments[i].annotation is inspect._empty:
                 raise TaichiSyntaxError(f"Parameter `{self.arguments[i].name}` missing.")
@@ -1185,12 +1186,12 @@ def _kernel_impl(_func, level_of_class_stackframe, verbose=False):
 
         @functools.wraps(_func)
         def wrapped(*args, **kwargs):
-            try:
+            # try:
                 return primal(*args, **kwargs)
-            except (TaichiCompilationError, TaichiRuntimeError) as e:
-                if impl.get_runtime().print_full_traceback:
-                    raise e
-                raise type(e)("\n" + str(e)) from None
+            # except (TaichiCompilationError, TaichiRuntimeError) as e:
+            #     if impl.get_runtime().print_full_traceback:
+            #         raise e
+            #     raise type(e)("\n" + str(e)) from None
 
         wrapped.grad = adjoint
 

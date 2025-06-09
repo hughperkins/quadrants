@@ -415,6 +415,7 @@ void LlvmRuntimeExecutor::initialize_snode_shape(int snodeId, struct ShapeInfo s
 void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
     const LlvmOfflineCache::FieldCacheData &field_cache_data,
     uint64 *result_buffer) {
+  std::cout << "initialize_runtime_snodes" << std::endl;
   auto *const runtime_jit = get_runtime_jit_module();
   // By the time this creator is called, "this" is already destroyed.
   // Therefore it is necessary to capture members by values.
@@ -468,6 +469,13 @@ void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
       (int)snode_metas.size(), tree_id, rounded_size, root_buffer, all_dense);
 
   for (size_t i = 0; i < snode_metas.size(); i++) {
+    std::cout << "initialize_runtime_snodes i=" << i << " id " << snode_metas[i].id << std::endl;
+    // struct ShapeInfo shapeInfo;
+    // populate_shape_info(snode_metas[i], &shapeInfo);
+    // shapeInfo.strides[0] = 1;
+    // for (int j = 1; j < 5; j++) {
+    //   shapeInfo.strides[j] = shapeInfo.strides[j - 1] * 5;
+    // }
     if (is_gc_able(snode_metas[i].type)) {
       const auto snode_id = snode_metas[i].id;
       std::size_t node_size;
@@ -486,8 +494,6 @@ void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
           node_size);
       TI_TRACE("Allocating ambient element for snode {} (node size {})",
                snode_id, node_size);
-      runtime_jit->call<void *, int>("runtime_allocate_ambient", llvm_runtime_,
-                                     snode_id, node_size);
     }
   }
 }

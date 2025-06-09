@@ -45,8 +45,10 @@ void ScalarPointerLowerer::run() {
 
   auto *leaf_snode = snodes_[path_length_ - 1];
   Stmt *last = lowered_->push_back<GetRootStmt>(snodes_[0]);
+  std::cout << "Running ScalarPointerLowerer\n";
   for (int i = 0; i < path_length_; i++) {
     auto *snode = snodes_[i];
+    std::cout << "   snode id " << snode->id << std::endl;;
     // TODO: Explain this condition
     if (is_bit_vectorized_ && (snode->type == SNodeType::quant_array) &&
         (i == path_length_ - 1) && (snodes_[i - 1]->type == SNodeType::dense)) {
@@ -76,6 +78,10 @@ void ScalarPointerLowerer::run() {
       is_first_extraction[k] = false;
       lowered_indices.push_back(extracted);
       strides.push_back(snode->extractors[k].shape);
+    }
+    std::cout << "###### scalar_pointer lower strides snode " << snode->id << std::endl;
+    for(int k_ = 0; k_ < strides.size(); k_++) {
+      std::cout << "strides " << k_ << " = " << strides[k_] << std::endl;
     }
     // linearize
     auto *linearized =
