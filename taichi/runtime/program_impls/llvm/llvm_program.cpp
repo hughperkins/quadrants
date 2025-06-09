@@ -147,13 +147,6 @@ void LlvmProgramImpl::cache_field(int snode_tree_id,
   ret.root_id = root_id;
   ret.root_size = struct_compiler.root_size;
 
-// struct AxisExtractor {
-//   int num_elements_from_root{1};
-//   int shape{1};
-//   int acc_shape{1};
-//   bool active{false};
-// };
-
   const auto &snodes = struct_compiler.snodes;
   for (size_t i = 0; i < snodes.size(); i++) {
     LlvmOfflineCache::FieldCacheData::SNodeCacheData snode_cache_data;
