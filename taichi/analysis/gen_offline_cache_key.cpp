@@ -437,6 +437,7 @@ class ASTSerializer : public IRVisitor, public ExpressionVisitor {
     for (auto &[func, id] : real_funcs_) {
       if (auto &ast_str = func->try_get_ast_serialization_data();
           ast_str.has_value()) {
+        // std::cout << "real func str " << ast_str << std::endl;
         emit_bytes(ast_str->c_str(), ast_str->size());
       }
     }

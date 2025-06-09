@@ -242,10 +242,12 @@ const CompiledKernelData &KernelCompilationManager::compile_and_cache_kernel(
   TI_DEBUG_IF(cache_mode == CacheData::MemAndDiskCache,
               "Cache kernel '{}' (key='{}')", kernel_def.get_name(),
               kernel_key);
+  std::cout << "kernel_key" << kernel_key << std::endl;
   TI_ASSERT(caching_kernels_.find(kernel_key) == caching_kernels_.end());
   KernelCacheData k;
   k.kernel_key = kernel_key;
   k.created_at = k.last_used_at = std::time(nullptr);
+  std::cout << "COMPILING KERNEL: " << kernel_def.get_name() << std::endl;
   k.compiled_kernel_data = compile_kernel(compile_config, caps, kernel_def);
   k.size = 0;  // Populate `size` within the KernelCompilationManager::dump()
   k.cache_mode = cache_mode;

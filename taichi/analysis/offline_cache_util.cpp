@@ -167,7 +167,29 @@ std::string get_hashed_offline_cache_key_of_snode(const SNode *snode) {
   return picosha2::get_hash_hex_string(hasher);
 }
 
-std::string get_hashed_offline_cache_key(const CompileConfig &config,
+// // Print a string as ASCII where printable, hex where not
+// auto print_ascii_or_hex = [](const std::string &data, const std::string &label) {
+//   std::ostringstream oss;
+//   for (unsigned char c : data) {
+//     if (c >= 32 && c <= 126) { // printable ASCII
+//       oss << c;
+//     } else {
+//       oss << std::hex << std::setw(2) << std::setfill('0') << (int)c;
+//     }
+//   }
+//   std::printf("%s: %s\n", label.c_str(), oss.str().c_str());
+// };
+
+//   // Debug dump for offline cache key components
+//   auto print_hex = [](const std::vector<std::uint8_t> &data, const std::string &label) {
+//     std::ostringstream oss;
+//     for (auto b : data) {
+//       oss << std::hex << std::setw(2) << std::setfill('0') << (int)b;
+//     }
+//     std::printf("%s: %s\n", label.c_str(), oss.str().c_str());
+//   };
+  
+  std::string get_hashed_offline_cache_key(const CompileConfig &config,
                                          const DeviceCapabilityConfig &caps,
                                          Kernel *kernel) {
   std::vector<std::uint8_t> kernel_params_string, kernel_rets_string;
@@ -186,6 +208,30 @@ std::string get_hashed_offline_cache_key(const CompileConfig &config,
   std::string autodiff_mode =
       std::to_string(static_cast<std::size_t>(kernel->autodiff_mode));
   picosha2::hash256_one_by_one hasher;
+
+//   if (kernel) {  // param_list, rets, body
+//   kernel_params_string =
+//       get_offline_cache_key_of_parameter_list(kernel->parameter_list);
+//   kernel_rets_string = get_offline_cache_key_of_rets(kernel->rets);
+//   std::ostringstream oss;
+//   if (kernel->ir) {
+//     gen_offline_cache_key(kernel->ir.get(), &oss);
+//     kernel_body_string = oss.str();
+//     std::printf("kernel->ir exists, kernel_body_string length: %zu\n", kernel_body_string.size());
+//   } else {
+//     std::printf("kernel->ir is nullptr\n");
+//   }
+// } else {
+//   std::printf("kernel is nullptr\n");
+// }
+  // print_hex(compile_config_key, "compile_config_key");
+  // print_hex(device_caps_key, "device_caps_key");
+  // print_hex(kernel_params_string, "kernel_params_string");
+  // print_hex(kernel_rets_string, "kernel_rets_string");
+  // print_ascii_or_hex(kernel_body_string, "kernel_body_string");
+  // // std::printf("kernel_body_string: %s\n", kernel_body_string.c_str());
+  // std::printf("autodiff_mode: %s\n", autodiff_mode.c_str());
+
   hasher.process(compile_config_key.begin(), compile_config_key.end());
   hasher.process(device_caps_key.begin(), device_caps_key.end());
   hasher.process(kernel_params_string.begin(), kernel_params_string.end());
