@@ -280,8 +280,6 @@ void TaskCodeGenLLVM::emit_struct_meta_base(const std::string &name,
     element_size = tlctx->get_type_size(element_ty);
     max_num_elements = snode->max_num_elements();
   } else if (snode->type == SNodeType::root) {
-    // auto element_ty =
-    //     StructCompilerLLVM::get_llvm_element_type(module.get(), snode);
     element_size = 0;
     max_num_elements = 1;
   } else {
