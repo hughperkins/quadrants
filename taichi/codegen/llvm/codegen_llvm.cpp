@@ -263,24 +263,37 @@ void TaskCodeGenLLVM::emit_struct_meta_base(const std::string &name,
                                             SNode *snode) {
   RuntimeObject common("StructMeta", this, builder.get(), node_meta);
   std::size_t element_size;
+  std::size_t max_num_elements;
   if (snode->type == SNodeType::dense) {
     auto body_type =
         StructCompilerLLVM::get_llvm_body_type(module.get(), snode);
     auto element_ty = body_type->getArrayElementType();
+    std::cout << "element_ty: " << element_ty->getStructName().str()
+              << std::endl;
     element_size = tlctx->get_type_size(element_ty);
+    std::cout << "element_size: " << element_size
+              << std::endl;
+    max_num_elements = 1; // TODO: less hacky :)
   } else if (snode->type == SNodeType::pointer) {
     auto element_ty = StructCompilerLLVM::get_llvm_node_type(
         module.get(), snode->ch[0].get());
     element_size = tlctx->get_type_size(element_ty);
+    max_num_elements = snode->max_num_elements();
+  } else if (snode->type == SNodeType::root) {
+    // auto element_ty =
+    //     StructCompilerLLVM::get_llvm_element_type(module.get(), snode);
+    element_size = 0;
+    max_num_elements = 1;
   } else {
     auto element_ty =
         StructCompilerLLVM::get_llvm_element_type(module.get(), snode);
     element_size = tlctx->get_type_size(element_ty);
+    max_num_elements = snode->max_num_elements();
   }
   common.set("snode_id", tlctx->get_constant(snode->id));
   common.set("element_size", tlctx->get_constant((uint64)element_size));
   common.set("max_num_elements",
-             tlctx->get_constant(snode->max_num_elements()));
+             tlctx->get_constant(max_num_elements));
   common.set("context", get_context());
   common.set("runtime", get_runtime());
 
