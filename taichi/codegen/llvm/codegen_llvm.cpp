@@ -1748,27 +1748,14 @@ struct ShapeInfo {
 };
 
 void TaskCodeGenLLVM::visit(LinearizeStmt *stmt) {
-  // auto runtime = get_runtime();
   llvm::Value *val = tlctx->get_constant(0);
 
   auto s = emit_struct_meta(stmt->sNode);
   auto s_ptr =
       builder->CreateBitCast(s, llvm::Type::getInt8PtrTy(*llvm_context));
 
-  // Allocate ShapeInfo on the stack
-  // auto shape_info_ty = tlctx->get_data_type<ShapeInfo>();
-  // auto shape_info_ptr = create_entry_block_alloca(shape_info_ty);
-
-  // Call LLVMRuntime_get_snode_shapes with sret
-  // call("LLVMRuntime_get_snode_shapes", shape_info_ptr, runtime, tlctx->get_constant(stmt->sNode->id));
-
   for (int i = 0; i < (int)stmt->inputs.size(); i++) {
     auto stride_val = call("Dense_get_stride", s_ptr, tlctx->get_constant(i));
-    // Access strides from the stack-allocated ShapeInfo
-    // auto strides_ptr = builder->CreateGEP(
-    //     shape_info_ty, shape_info_ptr,
-    //     {tlctx->get_constant(0), tlctx->get_constant(0), tlctx->get_constant(i)});
-    // auto stride_val = builder->CreateLoad(tlctx->get_data_type<int32_t>(), strides_ptr);
     val = builder->CreateAdd(
         builder->CreateMul(val, stride_val),
         llvm_val[stmt->inputs[i]]);

@@ -1278,8 +1278,7 @@ class LinearizeStmt : public Stmt {
  public:
   std::vector<Stmt *> inputs;
   SNode *sNode;
-  // int sNodeId;
-  // std::vector<int> strides; // we'll have to create a new type of LinearizeStmt probably
+  // we'll have to create a new type of LinearizeStmt probably, in order to allow non-dense again
 
   LinearizeStmt(const std::vector<Stmt *> &inputs, SNode *sNode
                 // const std::vector<int> &strides
