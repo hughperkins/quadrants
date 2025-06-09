@@ -109,21 +109,21 @@ static void get_offline_cache_key_of_snode_impl(
   }
   for (int i = 0; i < taichi_max_num_indices; ++i) {
     auto &extractor = snode->extractors[i];
-    serializer(extractor.num_elements_from_root);
-    serializer(extractor.shape);
-    serializer(extractor.acc_shape);
+    // serializer(extractor.num_elements_from_root);
+    // serializer(extractor.shape);
+    // serializer(extractor.acc_shape);
     serializer(extractor.active);
   }
-  serializer(snode->index_offsets);
+  // serializer(snode->index_offsets);
   serializer(snode->num_active_indices);
-  serializer(snode->physical_index_position);
+  // serializer(snode->physical_index_position);
   serializer(snode->id);
-  serializer(snode->depth);
+  // serializer(snode->depth);
   serializer(snode->name);
-  serializer(snode->num_cells_per_container);
-  serializer(snode->chunk_size);
-  serializer(snode->cell_size_bytes);
-  serializer(snode->offset_bytes_in_parent_cell);
+  // serializer(snode->num_cells_per_container);
+  // serializer(snode->chunk_size);
+  // serializer(snode->cell_size_bytes);
+  // serializer(snode->offset_bytes_in_parent_cell);
   serializer(snode->dt->to_string());
   serializer(snode->has_ambient);
   if (!snode->ambient_val.dt->is_primitive(PrimitiveTypeID::unknown)) {
