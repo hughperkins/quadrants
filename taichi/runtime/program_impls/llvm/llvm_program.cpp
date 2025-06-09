@@ -65,7 +65,7 @@ void LlvmProgramImpl::compile_snode_tree_types(SNodeTree *tree) {
 }
 
 struct ShapeInfo {
-  int strides[taichi_max_num_indices];
+  int32_t strides[taichi_max_num_indices];
 };
 
 struct ShapeInfo snode_to_shape_info(SNode *snode) {

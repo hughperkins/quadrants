@@ -389,7 +389,7 @@ DevicePtr LlvmRuntimeExecutor::get_snode_tree_device_ptr(int tree_id) {
 }
 
 struct ShapeInfo {
-  int strides[taichi_max_num_indices];
+  int32_t strides[taichi_max_num_indices];
 };
 
 // void populate_shape_info(const LlvmOfflineCache::FieldCacheData::SNodeCacheData &snode_meta, struct ShapeInfo *shapeInfo) {

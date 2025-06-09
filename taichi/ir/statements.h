@@ -1277,12 +1277,15 @@ class IntegerOffsetStmt : public Stmt {
 class LinearizeStmt : public Stmt {
  public:
   std::vector<Stmt *> inputs;
-  std::vector<int> strides;
+  SNode *sNode;
+  // int sNodeId;
+  // std::vector<int> strides; // we'll have to create a new type of LinearizeStmt probably
 
-  LinearizeStmt(const std::vector<Stmt *> &inputs,
-                const std::vector<int> &strides)
-      : inputs(inputs), strides(strides) {
-    TI_ASSERT(inputs.size() == strides.size());
+  LinearizeStmt(const std::vector<Stmt *> &inputs, SNode *sNode
+                // const std::vector<int> &strides
+      )
+      : inputs(inputs), sNode(sNode) {
+    // TI_ASSERT(inputs.size() == strides.size());
     TI_STMT_REG_FIELDS;
   }
 
@@ -1290,7 +1293,7 @@ class LinearizeStmt : public Stmt {
     return false;
   }
 
-  TI_STMT_DEF_FIELDS(ret_type, inputs, strides);
+  TI_STMT_DEF_FIELDS(ret_type, inputs, sNode);
   TI_DEFINE_ACCEPT_AND_CLONE
 };
 

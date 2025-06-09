@@ -19,6 +19,12 @@ u1 Dense_is_active(Ptr meta, Ptr node, int i) {
   return true;
 }
 
+i32 Dense_get_stride(Ptr meta, int i) {
+  auto runtime = ((StructMeta *)meta)->runtime;
+  auto shapeInfo = runtime->snode_shapes[((StructMeta *)meta)->snode_id];
+  return shapeInfo.strides[i];
+}
+
 Ptr Dense_lookup_element(Ptr meta, Ptr node, int i) {
   return node + ((StructMeta *)meta)->element_size * i;
 }

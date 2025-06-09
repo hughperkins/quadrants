@@ -79,7 +79,7 @@ void ScalarPointerLowerer::run() {
     }
     // linearize
     auto *linearized =
-        lowered_->push_back<LinearizeStmt>(lowered_indices, strides);
+        lowered_->push_back<LinearizeStmt>(lowered_indices, snode);
 
     last = handle_snode_at_level(i, linearized, last);
   }

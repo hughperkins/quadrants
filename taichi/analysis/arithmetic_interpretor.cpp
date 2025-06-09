@@ -96,16 +96,17 @@ class EvalVisitor : public IRVisitor {
   }
 
   void visit(LinearizeStmt *stmt) override {
-    int64_t val = 0;
-    for (int i = 0; i < (int)stmt->inputs.size(); ++i) {
-      auto idx_opt = context_.maybe_get(stmt->inputs[i]);
-      if (!idx_opt) {
-        failed_ = true;
-        return;
-      }
-      val = (val * stmt->strides[i]) + idx_opt.value().val_int();
-    }
-    insert_to_ctx(stmt, stmt->ret_type, val);
+    std::cout << "EvalVisitor::visit(LinearizeStmt *stmt)" << std::endl;
+    // int64_t val = 0;
+    // for (int i = 0; i < (int)stmt->inputs.size(); ++i) {
+    //   auto idx_opt = context_.maybe_get(stmt->inputs[i]);
+    //   if (!idx_opt) {
+    //     failed_ = true;
+    //     return;
+    //   }
+    //   val = (val * stmt->strides[i]) + idx_opt.value().val_int();
+    // }
+    // insert_to_ctx(stmt, stmt->ret_type, val);
   }
 
   void visit(Stmt *stmt) override {

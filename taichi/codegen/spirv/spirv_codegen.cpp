@@ -531,14 +531,14 @@ class TaskCodegen : public IRVisitor {
   }
 
   void visit(LinearizeStmt *stmt) override {
-    spirv::Value val = ir_->const_i32_zero_;
-    for (size_t i = 0; i < stmt->inputs.size(); ++i) {
-      spirv::Value strides_val =
-          ir_->int_immediate_number(ir_->i32_type(), stmt->strides[i]);
-      spirv::Value input_val = ir_->query_value(stmt->inputs[i]->raw_name());
-      val = ir_->add(ir_->mul(val, strides_val), input_val);
-    }
-    ir_->register_value(stmt->raw_name(), val);
+    // spirv::Value val = ir_->const_i32_zero_;
+    // for (size_t i = 0; i < stmt->inputs.size(); ++i) {
+    //   spirv::Value strides_val =
+    //       ir_->int_immediate_number(ir_->i32_type(), stmt->strides[i]);
+    //   spirv::Value input_val = ir_->query_value(stmt->inputs[i]->raw_name());
+    //   val = ir_->add(ir_->mul(val, strides_val), input_val);
+    // }
+    // ir_->register_value(stmt->raw_name(), val);
   }
 
   void visit(LoopIndexStmt *stmt) override {

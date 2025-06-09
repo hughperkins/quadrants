@@ -612,12 +612,12 @@ class IRPrinter : public IRVisitor {
   void visit(LinearizeStmt *stmt) override {
     auto ind = make_list<Stmt *>(
         stmt->inputs, [&](Stmt *const &stmt) { return stmt->name(); }, "{");
-    auto stride = make_list<int>(
-        stmt->strides,
-        [&](const int &stride) { return std::to_string(stride); }, "{");
+    // auto stride = make_list<int>(
+    //     stmt->strides,
+    //     [&](const int &stride) { return std::to_string(stride); }, "{");
 
-    print("{}{} = linearized(ind {}, stride {})", stmt->type_hint(),
-          stmt->name(), ind, stride);
+    print("{}{} = linearized(ind {})", stmt->type_hint(),
+          stmt->name(), ind);
     dbg_info_printer_(stmt);
   }
 
