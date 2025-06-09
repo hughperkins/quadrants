@@ -268,11 +268,7 @@ void TaskCodeGenLLVM::emit_struct_meta_base(const std::string &name,
     auto body_type =
         StructCompilerLLVM::get_llvm_body_type(module.get(), snode);
     auto element_ty = body_type->getArrayElementType();
-    std::cout << "element_ty: " << element_ty->getStructName().str()
-              << std::endl;
     element_size = tlctx->get_type_size(element_ty);
-    std::cout << "element_size: " << element_size
-              << std::endl;
     max_num_elements = 1; // TODO: less hacky :)
   } else if (snode->type == SNodeType::pointer) {
     auto element_ty = StructCompilerLLVM::get_llvm_node_type(
@@ -1752,7 +1748,6 @@ struct ShapeInfo {
 };
 
 void TaskCodeGenLLVM::visit(LinearizeStmt *stmt) {
-  std::cout << "TaskCodeGenLLVM::visit(LinearizeStmt *stmt)" << std::endl;
   // auto runtime = get_runtime();
   llvm::Value *val = tlctx->get_constant(0);
 

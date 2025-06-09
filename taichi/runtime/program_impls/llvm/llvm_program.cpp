@@ -69,105 +69,31 @@ struct ShapeInfo {
 };
 
 struct ShapeInfo snode_to_shape_info(SNode *snode) {
-  std::cout << "******************** snode_to_shape_info snode id = " << snode->id << std::endl;
   struct ShapeInfo shape_info;
   memset(&shape_info, 0, sizeof(shape_info));
   if(snode->ch.size() == 0) {
-    std::cout << "snode_to_shape_info snode has no children" << std::endl;
     return shape_info;
   }
-  // shape_info.shape = snode->extractors[0].shape;
-  // shape_info.acc_shape = snode->extractors[0].acc_shape;
-  // for (int i = 1; i < snode->num_active_indices; i++) {
-  //   shape_info.shape *= snode->extractors[i].shape;
-  //   shape_info.acc_shape *= snode->extractors[i].acc_shape;
-  // }
 
   std::array<int, taichi_max_num_indices> total_shape;
   total_shape.fill(1);
-  // for (const auto *s : snodes_) {
-  std::cout << " num children of node " << snode-> id << " is " << snode->ch.size() << std::endl;
   auto *s = snode;
-  // std::cout << " num grand children of node id " << s->id << " is " << s->ch.size() << std::endl;
     for (int j = 0; j < taichi_max_num_indices; j++) {
       total_shape[j] *= s->extractors[j].shape;
     }
-    for (int j = 0; j < taichi_max_num_indices; j++) {
-      std::cout << "total shape " << j << " = " << total_shape[j] << std::endl;
-    }
-  // }
-  // std::array<bool, taichi_max_num_indices> is_first_extraction;
-  // is_first_extraction.fill(true);
-
-  // if (path_length_ == 0)
-  //   return;
-
-  // auto *leaf_snode = snodes_[path_length_ - 1];
   auto *leaf_snode = snode->ch[0].get();
-  // // Stmt *last = lowered_->push_back<GetRootStmt>(snodes_[0]);
-  // // std::cout << "Running ScalarPointerLowerer\n";
-  // // for (int i = 0; i < path_length_; i++) {
-  //   // auto *snode = snodes_[i];
-  //   // auto *snod
-  //   std::cout << "   snode id " << snode->id << std::endl;;
-  //   // TODO: Explain this condition
-  //   // if (is_bit_vectorized_ && (snode->type == SNodeType::quant_array) &&
-  //   //     (i == path_length_ - 1) && (snodes_[i - 1]->type == SNodeType::dense)) {
-  //   //   continue;
-  //   // }
-  //   // std::vector<Stmt *> lowered_indices;
     std::vector<int> strides;
-  //   // extract lowered indices
-  //   // for (int k_ = 0; k_ < (int)indices_.size(); k_++) {
     for(int k_ = 0; k_ < taichi_max_num_indices; k_++) {
-      std::cout << "k_ = " << k_ << std::endl;
       int k = leaf_snode->physical_index_position[k_];
-      std::cout << "k = " << k << " extractors[k].shape " << snode->extractors[k].shape << std::endl;
-      std::cout << "    active " << k << " = " << snode->extractors[k].active << std::endl;
-  //     if(k == -1) continue;
       if (!snode->extractors[k].active)
         continue;
-  //     // Stmt *extracted;
-  //     // const int prev = total_shape[k];
       total_shape[k] /= snode->extractors[k].shape;
-  //     // const int next = total_shape[k];
-  //     // Upon first extraction on axis k, "indices_[k_]" is the user
-  //     // coordinate on axis k and "prev" is the total shape of axis k.
-  //     // Unless it is an invalid out-of-bound access, we can assume
-  //     // "indices_[k_] < prev" so we don't need a mod here.
-  //     // if (is_first_extraction[k]) {
-  //     //   extracted = indices_[k_];
-  //     // } else {
-  //     //   extracted = generate_mod(lowered_, indices_[k_], prev);
-  //     // }
-  //     // extracted = generate_div(lowered_, extracted, next);
-  //     // is_first_extraction[k] = false;
-  //     // lowered_indices.push_back(extracted);
       strides.push_back(snode->extractors[k].shape);  
     }
-    // these strides don't match what I'd expect, but they do match what
-    // ScalarPointerLowerer::run gives...
     for(int k_ = 0; k_ < strides.size(); k_++) {
-      std::cout << "strides " << k_ << " = " << strides[k_] << std::endl;
       shape_info.strides[k_] = strides[k_];
     }
   return shape_info;
-}
-
-void walk(SNode *node, std::string indent = "") {
-  std::cout << indent << "SNode id = " << node->id << " type = " << int(node->type) << " num active indices " << node->num_active_indices << " name " << node->name << std::endl;
-  for(int j = 0; j < node->num_active_indices; j++) {
-    std::cout << indent << " index " << j << " phys index pos " << node->physical_index_position[j] << std::endl;
-  }
-  for(int j = 0; j < node->num_active_indices; j++) {
-    auto extr = node->extractors[j];
-    std::cout << indent << " index " << j << " extractor shape " << extr.shape << " active " << extr.active <<
-    " acc_shape " << extr.acc_shape << " num elements from root " << extr.num_elements_from_root << std::endl;
-  }
-  for(auto &child_uniq : node->ch) {
-    auto child = child_uniq.get();
-    walk(child, indent + "  ");
-  }
 }
 
 void LlvmProgramImpl::materialize_snode_tree(SNodeTree *tree,
@@ -177,33 +103,14 @@ void LlvmProgramImpl::materialize_snode_tree(SNodeTree *tree,
 
   TI_ASSERT(cache_data_->fields.find(snode_tree_id) !=
             cache_data_->fields.end());
-  std::cout << "LlvmProgramImpl::materialize_snode_tree snode tree id = " << snode_tree_id << std::endl;
   SNode *root = tree->root();
-  walk(root);
-  std::cout << "root id = " << root->id << " type = " << int(root->type) << "num active indices " << root->num_active_indices << std::endl;
-  for(auto &child_uniq : root->ch) {
-    auto child = child_uniq.get();
-    std::cout << "child id = " << child->id << " type = " << int(child->type) << " num active indices " << child->num_active_indices << std::endl;
-    for(auto j = 0; j < child->num_active_indices; j++) {
-      std::cout << "index " << j << " phys index pos " << child->physical_index_position[j] << std::endl;
-      auto extr = child->extractors[j];
-      std::cout << "extractor shape " << extr.shape << " acc shape " << extr.acc_shape << " numrootelements " << extr.num_elements_from_root << " active " << extr.active << std::endl;
-    }
-  }
-  // struct ShapeInfo shape_infos[root->ch.size()];
-  // int snodeIdsForShapes[root->ch.size()];
-  // for(auto &child_unq: root->ch) {
   for(auto i = 0; i < root->ch.size(); i++) {
     auto &child_unq = root->ch[i];
     auto child = child_unq.get();
     ShapeInfo shapeInfo = snode_to_shape_info(child);
-    std::cout << "calling runtime exec -> initialize_snode_shape for child id = " << child->id << std::endl;
     runtime_exec_->initialize_snode_shape(child->id, shapeInfo);
-    // shape_infos[i] = snode_to_shape_info(child);
-    // snodeIdsForShapes[i] = child->id;
   }
   
-  // std::cout << "shape_info " << (void *)&shape_info << std::endl;
   initialize_llvm_runtime_snodes(cache_data_->fields.at(snode_tree_id),
                                  result_buffer);
 }
@@ -256,21 +163,6 @@ void LlvmProgramImpl::cache_field(int snode_tree_id,
     snode_cache_data.chunk_size = snodes[i]->chunk_size;
 
     ret.snode_metas.emplace_back(std::move(snode_cache_data));
-    std::cout << "LlvmProgramImpl::cache_field snode id = " << snodes[i]->id
-              << " type = " << int(snodes[i]->type)
-              << " num active indices " << snodes[i]->num_active_indices << std::endl;
-    for(auto j = 0; j < snodes[i]->num_active_indices; j++) {
-      std::cout << "index " << j << " phys index pos " << snodes[i]->physical_index_position[j] << std::endl;
-      auto extr = snodes[i]->extractors[j];
-      std::cout << "extractor shape " << extr.shape << " acc shape " << extr.acc_shape << " numrootelements " << extr.num_elements_from_root << " active " << extr.active << std::endl;
-    }
-    // Print index_offsets for the snode
-    std::cout << "index_offsets: ";
-    for (auto offset : snodes[i]->index_offsets) {
-      std::cout << offset << " ";
-    }
-    std::cout << std::endl;
-    
   }
 
   cache_data_->fields[snode_tree_id] = std::move(ret);
