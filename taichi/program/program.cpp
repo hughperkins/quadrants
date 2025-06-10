@@ -237,12 +237,17 @@ void Program::destroy_snode_tree(SNodeTree *snode_tree) {
 
 SNodeTree *Program::add_snode_tree(std::unique_ptr<SNode> root,
                                    bool compile_only) {
+  std::cout << "Program::add_snode_tree: "
+            << "compile_only = " << compile_only << std::endl;
   const int id = allocate_snode_tree_id();
+  std::cout << "Program::add_snode_tree: allocated snode tree id, making snodetree" << std::endl;
   auto tree = std::make_unique<SNodeTree>(id, std::move(root));
   tree->root()->set_snode_tree_id(id);
   if (compile_only) {
+    std::cout << "Program::add_snode_tree: allocated snode tree id, compiling only" << std::endl;
     program_impl_->compile_snode_tree_types(tree.get());
   } else {
+    std::cout << "Program::add_snode_tree: allocated snode tree id, materializing snode tree" << std::endl;
     program_impl_->materialize_snode_tree(tree.get(), result_buffer);
   }
   if (id < snode_trees_.size()) {

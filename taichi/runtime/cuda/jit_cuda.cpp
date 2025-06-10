@@ -36,6 +36,7 @@ void *JITModuleCUDA::lookup_function(const std::string &name) {
   CUDAContext::get_instance().make_current();
   void *func = nullptr;
   auto t = Time::get_time();
+  std::cout << "JITModuleCUDA::lookup_function " << name.c_str() << std::endl;
   auto err = CUDADriver::get_instance().module_get_function.call_with_warning(
       &func, module_, name.c_str());
   if (err) {
