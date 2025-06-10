@@ -394,7 +394,7 @@ struct ShapeInfo {
 
 void LlvmRuntimeExecutor::initialize_snode_shape(int snodeId, struct ShapeInfo shapeInfo) {
   auto *const runtime_jit = get_runtime_jit_module();
-  runtime_jit->call<void *, int, struct ShapeInfo>("LLVMRuntime_set_snode_shapes", llvm_runtime_,
+  runtime_jit->call<void *, int, struct ShapeInfo>("runtime_LLVMRuntime_set_snode_shapes", llvm_runtime_,
                                     snodeId, shapeInfo);
 }
 
@@ -452,15 +452,6 @@ void LlvmRuntimeExecutor::initialize_llvm_runtime_snodes(
   runtime_jit->call<void *, std::size_t, int, int, int, std::size_t, Ptr>(
       "runtime_initialize_snodes", llvm_runtime_, root_size, root_id,
       (int)snode_metas.size(), tree_id, rounded_size, root_buffer, all_dense);
-
-  // runtime_exec_->initialize_snode_shape(child->id, shapeInfo);
-  ShapeInfo shapeInfo;
-  std::cout << "calling LLVMRuntime_set_snode_shapes " << std::endl;
-  runtime_jit->call<void *, int, struct ShapeInfo>("runtime_initialize_snodes", llvm_runtime_,
-                                    3, shapeInfo);
-  runtime_jit->call<void *, int, struct ShapeInfo>("LLVMRuntime_set_snode_shapes", llvm_runtime_,
-                                    3, shapeInfo);
-  std::cout << " ... done calling LLVMRuntime_set_snode_shapes " << std::endl;
 
   for (size_t i = 0; i < snode_metas.size(); i++) {
     if (is_gc_able(snode_metas[i].type)) {

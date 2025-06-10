@@ -112,10 +112,10 @@ void LlvmProgramImpl::materialize_snode_tree(SNodeTree *tree,
     auto child = child_unq.get();
     std::cout << "getting shape info for child " << i << ": "
               << child->get_node_type_name() << std::endl;
-    // ShapeInfo shapeInfo = snode_to_shape_info(child);
+    ShapeInfo shapeInfo = snode_to_shape_info(child);
     std::cout << "intiialize snode shape for child " << i << ": "
               << child->get_node_type_name() << std::endl;
-    // runtime_exec_->initialize_snode_shape(child->id, shapeInfo);
+    runtime_exec_->initialize_snode_shape(child->id, shapeInfo);
   }
   
   std::cout << " initializing llvm runtime snodes for tree id "

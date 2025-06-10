@@ -627,6 +627,11 @@ STRUCT_FIELD_ARRAY(LLVMRuntime, node_allocators);
 STRUCT_FIELD_ARRAY(LLVMRuntime, roots);
 STRUCT_FIELD_ARRAY(LLVMRuntime, root_mem_sizes);
 STRUCT_FIELD_ARRAY(LLVMRuntime, snode_shapes);
+
+extern "C" void runtime_LLVMRuntime_set_snode_shapes(LLVMRuntime *runtime, i32 idx, ShapeInfo shapeInfo) {
+  runtime->snode_shapes[idx] = shapeInfo;
+}
+
 STRUCT_FIELD(LLVMRuntime, temporaries);
 STRUCT_FIELD(LLVMRuntime, assert_failed);
 STRUCT_FIELD(LLVMRuntime, host_printf);
