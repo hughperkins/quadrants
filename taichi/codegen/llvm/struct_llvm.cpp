@@ -166,24 +166,24 @@ void StructCompilerLLVM::generate_refine_coordinates(SNode *snode) {
 
   auto inp_coords = args[0];
   auto outp_coords = args[1];
-  auto l = args[2];
+  // auto l = args[2];
 
   for (int i = 0; i < taichi_max_num_indices; i++) {
-    auto addition = tlctx_->get_constant(0);
+    // auto addition = tlctx_->get_constant(0);
     if (snode->extractors[i].shape > 1) {
-      std::cout << "Refining coordinates for " << snode->node_type_name
-                << " at index " << i << std::endl;
-      auto extr = snode->extractors[i];
-      std::cout << "  extr acc_shape: " << extr.acc_shape
-                << ", shape: " << extr.shape << std::endl;
-      auto prev = tlctx_->get_constant(snode->extractors[i].acc_shape *
-                                       snode->extractors[i].shape);
-      auto next = tlctx_->get_constant(snode->extractors[i].acc_shape);
+      // std::cout << "Refining coordinates for " << snode->node_type_name
+      //           << " at index " << i << std::endl;
+      // // auto extr = snode->extractors[i];
+      // std::cout << "  extr acc_shape: " << extr.acc_shape
+      //           << ", shape: " << extr.shape << std::endl;
+      // auto prev = tlctx_->get_constant(snode->extractors[i].acc_shape *
+      //                                  snode->extractors[i].shape);
+      // auto next = tlctx_->get_constant(snode->extractors[i].acc_shape);
       // Use UDiv/URem instead of SDiv/SRem so that LLVM can optimize them
       // into bitwise operations when the divisor is a power of two.
-      std::cout << "   urem " << (snode->extractors[i].acc_shape *
-                                       snode->extractors[i].shape) << " udiv " << (snode->extractors[i].acc_shape) << std::endl;
-      addition = builder.CreateUDiv(builder.CreateURem(l, prev), next);
+      // std::cout << "   urem " << (snode->extractors[i].acc_shape *
+      //                                  snode->extractors[i].shape) << " udiv " << (snode->extractors[i].acc_shape) << std::endl;
+      // addition = builder.CreateUDiv(builder.CreateURem(l, prev), next);
     }
     auto in = call(&builder, "PhysicalCoordinates_get_val", inp_coords,
                    tlctx_->get_constant(i));
