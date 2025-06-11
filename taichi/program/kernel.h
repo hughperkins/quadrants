@@ -19,6 +19,7 @@ class TI_DLL_EXPORT Kernel : public Callable {
   std::vector<SNode *> no_activate;
 
   bool is_accessor{false};
+  bool is_resizable{false};
 
   Kernel(Program &program,
          const std::function<void()> &func,
@@ -27,6 +28,7 @@ class TI_DLL_EXPORT Kernel : public Callable {
 
   Kernel(Program &program,
          const std::function<void(Kernel *)> &func,
+         bool resizable,
          const std::string &name = "",
          AutodiffMode autodiff_mode = AutodiffMode::kNone);
 
@@ -57,6 +59,7 @@ class TI_DLL_EXPORT Kernel : public Callable {
  private:
   void init(Program &program,
             const std::function<void()> &func,
+            bool resizable,
             const std::string &name = "",
             AutodiffMode autodiff_mode = AutodiffMode::kNone);
 

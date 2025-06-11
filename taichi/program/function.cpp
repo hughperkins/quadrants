@@ -2,12 +2,14 @@
 #include "taichi/program/program.h"
 #include "taichi/ir/transforms.h"
 #include "taichi/analysis/offline_cache_util.h"
+#include "taichi/analysis/gen_offline_cache_key.h"
 
 namespace taichi::lang {
 
-Function::Function(Program *program, const FunctionKey &func_key)
+Function::Function(Program *program, const Kernel *kernel, const FunctionKey &func_key)
     : func_key(func_key) {
   this->program = program;
+  this->kernel = kernel;
   arch = program->compile_config().arch;
 }
 
@@ -26,7 +28,7 @@ void Function::set_function_body(const std::function<void()> &func) {
 
   if (program->compile_config().offline_cache) {  // For generating AST-Key
     std::ostringstream oss;
-    gen_offline_cache_key(ir.get(), &oss);
+    gen_offline_cache_key(this->kernel, ir.get(), &oss);
     ast_serialization_data_ = oss.str();
   }
 }

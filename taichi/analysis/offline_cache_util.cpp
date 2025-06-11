@@ -7,6 +7,7 @@
 #include "taichi/program/compile_config.h"
 #include "taichi/program/kernel.h"
 #include "taichi/rhi/device_capability.h"
+#include "taichi/analysis/gen_offline_cache_key.h"
 
 #include "picosha2.h"
 
@@ -95,6 +96,7 @@ static std::vector<std::uint8_t> get_offline_cache_key_of_device_caps(
 }
 
 static void get_offline_cache_key_of_snode_impl(
+    const Kernel *kernel,
     const SNode *snode,
     BinaryOutputSerializer &serializer,
     std::unordered_set<int> &visited) {
@@ -105,25 +107,29 @@ static void get_offline_cache_key_of_snode_impl(
 
   visited.insert(snode->id);
   for (auto &c : snode->ch) {
-    get_offline_cache_key_of_snode_impl(c.get(), serializer, visited);
+    get_offline_cache_key_of_snode_impl(kernel, c.get(), serializer, visited);
   }
   for (int i = 0; i < taichi_max_num_indices; ++i) {
     auto &extractor = snode->extractors[i];
-    // serializer(extractor.num_elements_from_root);
-    // serializer(extractor.shape);
-    // serializer(extractor.acc_shape);
+    if(!kernel->is_resizable) {
+      serializer(extractor.num_elements_from_root);
+      serializer(extractor.shape);
+      serializer(extractor.acc_shape);
+    }
     serializer(extractor.active);
   }
-  // serializer(snode->index_offsets);
   serializer(snode->num_active_indices);
-  // serializer(snode->physical_index_position);
   serializer(snode->id);
-  // serializer(snode->depth);
   serializer(snode->name);
-  // serializer(snode->num_cells_per_container);
-  // serializer(snode->chunk_size);
-  // serializer(snode->cell_size_bytes);
-  // serializer(snode->offset_bytes_in_parent_cell);
+  if(!kernel->is_resizable) {
+    serializer(snode->num_cells_per_container);
+    serializer(snode->chunk_size);
+    serializer(snode->cell_size_bytes);
+    serializer(snode->offset_bytes_in_parent_cell);
+    serializer(snode->index_offsets);
+    serializer(snode->physical_index_position);
+    serializer(snode->depth);
+  }
   serializer(snode->dt->to_string());
   serializer(snode->has_ambient);
   if (!snode->ambient_val.dt->is_primitive(PrimitiveTypeID::unknown)) {
@@ -131,10 +137,10 @@ static void get_offline_cache_key_of_snode_impl(
   }
   if (snode->grad_info && !snode->grad_info->is_primal()) {
     if (auto *adjoint_snode = snode->grad_info->adjoint_snode()) {
-      get_offline_cache_key_of_snode_impl(adjoint_snode, serializer, visited);
+      get_offline_cache_key_of_snode_impl(kernel, adjoint_snode, serializer, visited);
     }
     if (auto *dual_snode = snode->grad_info->dual_snode()) {
-      get_offline_cache_key_of_snode_impl(dual_snode, serializer, visited);
+      get_offline_cache_key_of_snode_impl(kernel, dual_snode, serializer, visited);
     }
   }
   if (snode->physical_type) {
@@ -149,14 +155,14 @@ static void get_offline_cache_key_of_snode_impl(
   serializer(snode->get_snode_tree_id());
 }
 
-std::string get_hashed_offline_cache_key_of_snode(const SNode *snode) {
+std::string get_hashed_offline_cache_key_of_snode(const Kernel *kernel, const SNode *snode) {
   TI_ASSERT(snode);
 
   BinaryOutputSerializer serializer;
   serializer.initialize();
   {
     std::unordered_set<int> visited;
-    get_offline_cache_key_of_snode_impl(snode, serializer, visited);
+    get_offline_cache_key_of_snode_impl(kernel, snode, serializer, visited);
   }
   serializer.finalize();
 
@@ -191,7 +197,7 @@ std::string get_hashed_offline_cache_key_of_snode(const SNode *snode) {
   
   std::string get_hashed_offline_cache_key(const CompileConfig &config,
                                          const DeviceCapabilityConfig &caps,
-                                         Kernel *kernel) {
+                                         const Kernel *kernel) {
   std::vector<std::uint8_t> kernel_params_string, kernel_rets_string;
   std::string kernel_body_string;
   if (kernel) {  // param_list, rets, body
@@ -199,7 +205,7 @@ std::string get_hashed_offline_cache_key_of_snode(const SNode *snode) {
         get_offline_cache_key_of_parameter_list(kernel->parameter_list);
     kernel_rets_string = get_offline_cache_key_of_rets(kernel->rets);
     std::ostringstream oss;
-    gen_offline_cache_key(kernel->ir.get(), &oss);
+    gen_offline_cache_key(kernel, kernel->ir.get(), &oss);
     kernel_body_string = oss.str();
   }
 

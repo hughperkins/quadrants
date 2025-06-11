@@ -19,15 +19,16 @@ Kernel::Kernel(Program &program,
                const std::function<void()> &func,
                const std::string &primal_name,
                AutodiffMode autodiff_mode) {
-  this->init(program, func, primal_name, autodiff_mode);
+  this->init(program, func, false, primal_name, autodiff_mode);
 }
 
 Kernel::Kernel(Program &program,
                const std::function<void(Kernel *)> &func,
+               bool resizable,
                const std::string &primal_name,
                AutodiffMode autodiff_mode) {
   // due to #6362, we cannot write [func, this] { return func(this); }
-  this->init(program, [&] { return func(this); }, primal_name, autodiff_mode);
+  this->init(program, [&] { return func(this); }, resizable, primal_name, autodiff_mode);
 }
 
 Kernel::Kernel(Program &program,
@@ -99,10 +100,12 @@ std::string Kernel::get_name() const {
 
 void Kernel::init(Program &program,
                   const std::function<void()> &func,
+                  bool resizable,
                   const std::string &primal_name,
                   AutodiffMode autodiff_mode) {
   this->autodiff_mode = autodiff_mode;
   this->program = &program;
+  this->is_resizable = resizable;
 
   is_accessor = false;
   context = std::make_unique<FrontendContext>(program.compile_config().arch,

@@ -8,6 +8,8 @@
 #include "taichi/program/function.h"
 #include "taichi/program/program.h"
 
+#include "gen_offline_cache_key.h"
+
 namespace taichi::lang {
 
 namespace {
@@ -424,14 +426,14 @@ class ASTSerializer : public IRVisitor, public ExpressionVisitor {
     emit(stmt->outputs);
   }
 
-  static void run(IRNode *ast, std::ostream *os) {
+  static void run(const Kernel *kernel, IRNode *ast, std::ostream *os) {
     ASTSerializer serializer(os);
     ast->accept(&serializer);
-    serializer.emit_dependencies();
+    serializer.emit_dependencies(kernel);
   }
 
  private:
-  void emit_dependencies() {
+  void emit_dependencies(const Kernel *kernel) {
     // Serialize dependent real-functions
     emit(real_funcs_.size());
     for (auto &[func, id] : real_funcs_) {
@@ -448,7 +450,7 @@ class ASTSerializer : public IRVisitor, public ExpressionVisitor {
     for (const auto *snode : snode_tree_roots_) {
       std::string key;
       if (snode_key_cache_.find(snode) == snode_key_cache_.end()) {
-        key = get_hashed_offline_cache_key_of_snode(snode);
+        key = get_hashed_offline_cache_key_of_snode(kernel, snode);
         snode_key_cache_[snode] = key;
       } else {
         key = snode_key_cache_[snode];
@@ -672,8 +674,8 @@ class ASTSerializer : public IRVisitor, public ExpressionVisitor {
 
 }  // namespace
 
-void gen_offline_cache_key(IRNode *ast, std::ostream *os) {
-  ASTSerializer::run(ast, os);
+void gen_offline_cache_key(const Kernel *kernel, IRNode *ast, std::ostream *os) {
+  ASTSerializer::run(kernel, ast, os);
 }
 
 }  // namespace taichi::lang

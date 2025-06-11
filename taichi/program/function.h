@@ -8,6 +8,7 @@ namespace taichi::lang {
 
 class Program;
 class Stmt;
+class Kernel;
 
 class Function : public Callable {
  public:
@@ -20,8 +21,9 @@ class Function : public Callable {
   };
 
   FunctionKey func_key;
-
-  Function(Program *program, const FunctionKey &func_key);
+  const Kernel *kernel;
+  
+  Function(Program *program, const Kernel *kernel, const FunctionKey &func_key);
 
   // Set the function body to a frontend Python function which generates the C++
   // AST.

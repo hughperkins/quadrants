@@ -167,9 +167,9 @@ TypeFactory &Program::get_type_factory() {
   return TypeFactory::get_instance();
 }
 
-Function *Program::create_function(const FunctionKey &func_key) {
+Function *Program::create_function(const Kernel *kernel, const FunctionKey &func_key) {
   TI_TRACE("Creating function {}...", func_key.get_full_name());
-  functions_.emplace_back(std::make_unique<Function>(this, func_key));
+  functions_.emplace_back(std::make_unique<Function>(this, kernel, func_key));
   TI_ASSERT(function_map_.count(func_key) == 0);
   function_map_[func_key] = functions_.back().get();
   return functions_.back().get();
@@ -290,7 +290,7 @@ Kernel &Program::get_snode_reader(SNode *snode) {
     auto ret = Stmt::make<FrontendReturnStmt>(ExprGroup(
         builder.expr_subscript(Expr(snode_to_fields_.at(snode)), indices)));
     builder.insert(std::move(ret));
-  });
+  }, false);
   ker.name = kernel_name;
   ker.is_accessor = true;
   for (int i = 0; i < snode->num_active_indices; i++)
@@ -321,7 +321,7 @@ Kernel &Program::get_snode_writer(SNode *snode) {
         snode->dt->get_compute_type());
     argload_expr->type_check(&this->compile_config());
     builder.insert_assignment(expr, argload_expr, expr->dbg_info);
-  });
+  }, false);
   ker.name = kernel_name;
   ker.is_accessor = true;
   for (int i = 0; i < snode->num_active_indices; i++)

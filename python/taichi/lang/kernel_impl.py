@@ -538,7 +538,7 @@ def _get_global_vars(_func):
 class Kernel:
     counter = 0
 
-    def __init__(self, _func, autodiff_mode, _classkernel=False):
+    def __init__(self, _func, autodiff_mode, resizable: bool, _classkernel=False):
         self.func = _func
         self.kernel_counter = Kernel.counter
         Kernel.counter += 1
@@ -550,6 +550,7 @@ class Kernel:
         )
         self.autodiff_mode = autodiff_mode
         self.grad = None
+        self.resizable = resizable
         self.arguments = []
         self.return_type = None
         self.classkernel = _classkernel
@@ -736,7 +737,7 @@ class Kernel:
                 self.runtime.current_kernel = None
                 self.runtime.compiling_callable = None
 
-        taichi_kernel = impl.get_runtime().prog.create_kernel(taichi_ast_generator, kernel_name, self.autodiff_mode)
+        taichi_kernel = impl.get_runtime().prog.create_kernel(taichi_ast_generator, kernel_name, self.autodiff_mode, self.resizable)
         assert key not in self.compiled_kernels
         self.compiled_kernels[key] = taichi_kernel
 
@@ -1153,15 +1154,15 @@ def _inside_class(level_of_class_stackframe):
     return False
 
 
-def _kernel_impl(_func, level_of_class_stackframe, verbose=False):
+def _kernel_impl(_func, level_of_class_stackframe, resizable: bool, verbose=False):
     # Can decorators determine if a function is being defined inside a class?
     # https://stackoverflow.com/a/8793684/12003165
     is_classkernel = _inside_class(level_of_class_stackframe + 1)
 
     if verbose:
         print(f"kernel={_func.__name__} is_classkernel={is_classkernel}")
-    primal = Kernel(_func, autodiff_mode=AutodiffMode.NONE, _classkernel=is_classkernel)
-    adjoint = Kernel(_func, autodiff_mode=AutodiffMode.REVERSE, _classkernel=is_classkernel)
+    primal = Kernel(_func, autodiff_mode=AutodiffMode.NONE, _classkernel=is_classkernel, resizable=resizable)
+    adjoint = Kernel(_func, autodiff_mode=AutodiffMode.REVERSE, _classkernel=is_classkernel, resizable=resizable)
     # Having |primal| contains |grad| makes the tape work.
     primal.grad = adjoint
 
@@ -1201,7 +1202,16 @@ def _kernel_impl(_func, level_of_class_stackframe, verbose=False):
     return wrapped
 
 
-def kernel(fn):
+# def resizable(fn):
+#     """
+#     Marks a kernel as:
+#     - not having a top level for that uses fields/ndarrays/anything other than primitives
+#     - only using dense fields, having default layout
+#     ... and therefore being resizable
+#     """
+
+
+def kernel(fn, resizable: bool = False):
     """Marks a function as a Taichi kernel.
 
     A Taichi kernel is a function written in Python, and gets JIT compiled by
@@ -1229,7 +1239,7 @@ def kernel(fn):
         >>>     for i in x:
         >>>         x[i] = i
     """
-    return _kernel_impl(fn, level_of_class_stackframe=3)
+    return _kernel_impl(fn, level_of_class_stackframe=3, resizable=resizable)
 
 
 class _BoundedDifferentiableMethod:
