@@ -117,6 +117,8 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
     TI_NOT_IMPLEMENTED;
   }
   if (aux_type != nullptr) {
+    std::cout << "calling StructType::create with aux_type "
+              << aux_type->getStructName().str() << std::endl;
     node_type = llvm::StructType::create(*ctx, {aux_type, body_type}, "");
   } else {
     node_type = body_type;
@@ -278,18 +280,10 @@ void StructCompilerLLVM::run(SNode &root) {
     std::filesystem::create_directories(dumpOutDir);
 
     std::string filename =
-        dumpOutDir + "/" + std::string(module->getName()) + "_llvm.ll";
-    // std::ofstream out_file(filename);
-    std::error_code EC;
-    llvm::raw_fd_ostream dest_file(filename, EC);
-    // if (out_file.is_open()) {
-    if (!EC) {
-      // std::string outString;
-      module->print(dest_file, nullptr);
-      // irpass::print(ir, &outString);
-      // out_file << outString;
-      // out_file.close();
-    }
+        dumpOutDir + "/" + std::string(module->getName()) + "_{:04d}_llvm.ll";
+        static FileSequenceWriter writer(filename,
+                                     "struct LLVM IR");
+        writer.write(module.get());
   }
 
   TI_ASSERT((int)snodes.size() <= taichi_max_num_snodes);
