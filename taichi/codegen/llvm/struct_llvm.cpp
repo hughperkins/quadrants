@@ -6,6 +6,7 @@
 #include "taichi/ir/ir.h"
 #include "taichi/struct/struct.h"
 #include "taichi/util/file_sequence_writer.h"
+#include "taichi/ir/transforms.h"
 
 namespace taichi::lang {
 
@@ -39,6 +40,8 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
   if (snode.is_bit_level)
     return;
   llvm::Type *node_type = nullptr;
+  std::cout << "StructCompilerLLVM::generate_types: "
+            << snode.type_name() << " snode id " << snode.id << " " << snode.type_name() << " " << snode.node_type_name << "\n";
 
   auto ctx = llvm_ctx_;
   TI_ASSERT(ctx == tlctx_->get_this_thread_context());
@@ -47,12 +50,17 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
 
   std::vector<llvm::Type *> ch_types;
   for (int i = 0; i < snode.ch.size(); i++) {
+    std::cout << " ch " << i << std::endl;
     if (!snode.ch[i]->is_bit_level) {
       // Bit-level SNodes do not really have a corresponding LLVM type
       auto ch = get_llvm_node_type(module.get(), snode.ch[i].get());
+      ch->print(llvm::outs());
+      llvm::outs() << "\n";
       ch_types.push_back(ch);
     }
   }
+  std::cout << "StructCompilerLLVM::generate_types: "
+            << "ch_types.size() = " << ch_types.size() << "\n";
 
   auto ch_type =
       llvm::StructType::create(*ctx, ch_types, snode.node_type_name + "_ch");
@@ -138,6 +146,11 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
        // aux_type might be null
        ch_type},
       type_stub_name(&snode));
+  // irpass::print(stub);
+  std::cout << "StructCompilerLLVM::generate_types: "
+            << type_stub_name(&snode) << "\n";
+  stub->print(llvm::outs());
+  llvm::outs() << "\n";
 
   // Create a dummy function in the module with the type stub as return type
   // so that the type is referenced in the module
@@ -263,8 +276,9 @@ void StructCompilerLLVM::run(SNode &root) {
   auto snodes_rev = snodes;
   std::reverse(snodes_rev.begin(), snodes_rev.end());
 
-  for (auto &n : snodes_rev)
+  for (auto &n : snodes_rev) {
     generate_types(*n);
+  }
 
   generate_child_accessors(root);
 
