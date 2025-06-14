@@ -53,28 +53,33 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
   for (int i = 0; i < snode.ch.size(); i++) {
     std::cout << " ch " << i << std::endl;
     // size_t ch_offset = curr_offset;
-      ch_offsets.push_back(curr_offset);
-      auto ch_snode = snode.ch[i].get();
-      ch_snode_ids.push_back(ch_snode->id);
+    ch_offsets.push_back(curr_offset);
+    auto ch_snode = snode.ch[i].get();
+    ch_snode_ids.push_back(ch_snode->id);
     if (!snode.ch[i]->is_bit_level) {
       // Bit-level SNodes do not really have a corresponding LLVM type
       auto ch = get_llvm_node_type(module.get(), snode.ch[i].get());
-      std::cout << " ch struct numelements " << ch->getStructNumElements() <<
-         " array num elements " << ch->getArrayNumElements() << 
-         " is array ty " << ch->isArrayTy() << " " <<  " is vector ty " << ch->isVectorTy() << std::endl;
-      ch->print(llvm::outs());
-      llvm::outs() << "\n";
-      ch_types.push_back(ch);
-      if(ch->isArrayTy()) {
-        auto elem_ty = llvm::cast<llvm::ArrayType>(ch)->getElementType();
-      std::cout << " array elem type: ";
-      elem_ty->print(llvm::outs());
-      llvm::outs() << "\n";
-      // std::cout << "elem_ty integer bit width " << elem_ty->getIntegerBitWidth() << " bits\n";
-      // std::cout << elem_ty->
-      const llvm::DataLayout &dl = module->getDataLayout();
-    std::cout << "elem_ty size in bytes: " << dl.getTypeAllocSize(elem_ty) << "\n";
-        curr_offset += dl.getTypeAllocSize(elem_ty) * ch->getArrayNumElements();
+      if (ch->isArrayTy()) {
+        std::cout << " ch struct numelements " << ch->getStructNumElements()
+                  << " array num elements " << ch->getArrayNumElements()
+                  << " is array ty " << ch->isArrayTy() << " "
+                  << " is vector ty " << ch->isVectorTy() << std::endl;
+        ch->print(llvm::outs());
+        llvm::outs() << "\n";
+        ch_types.push_back(ch);
+        if (ch->isArrayTy()) {
+          auto elem_ty = llvm::cast<llvm::ArrayType>(ch)->getElementType();
+          std::cout << " array elem type: ";
+          elem_ty->print(llvm::outs());
+          llvm::outs() << "\n";
+          // std::cout << "elem_ty integer bit width " <<
+          // elem_ty->getIntegerBitWidth() << " bits\n"; std::cout << elem_ty->
+          const llvm::DataLayout &dl = module->getDataLayout();
+          std::cout << "elem_ty size in bytes: " << dl.getTypeAllocSize(elem_ty)
+                    << "\n";
+          curr_offset +=
+              dl.getTypeAllocSize(elem_ty) * ch->getArrayNumElements();
+        } 
       }
     }
   }
