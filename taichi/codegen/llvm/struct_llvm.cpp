@@ -176,8 +176,8 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
 
   // Create a dummy function in the module with the type stub as return type
   // so that the type is referenced in the module
-  auto ft = llvm::FunctionType::get(stub, false);
-  create_function(ft, type_stub_name(&snode) + "_func");
+  // auto ft = llvm::FunctionType::get(stub, false);
+  // create_function(ft, type_stub_name(&snode) + "_func");
 }
 
 void StructCompilerLLVM::generate_refine_coordinates(SNode *snode) {
@@ -348,9 +348,9 @@ void StructCompilerLLVM::run(SNode &root) {
   auto snodes_rev = snodes;
   std::reverse(snodes_rev.begin(), snodes_rev.end());
 
-  for (auto &n : snodes_rev) {
-    generate_types(*n);
-  }
+  // for (auto &n : snodes_rev) {
+  //   generate_types(*n);
+  // }
 
   generate_child_accessors(root);
 
@@ -374,8 +374,8 @@ void StructCompilerLLVM::run(SNode &root) {
 
   TI_ASSERT((int)snodes.size() <= taichi_max_num_snodes);
 
-  auto node_type = get_llvm_node_type(module.get(), &root);
-  root_size = tlctx_->get_type_size(node_type);
+  // auto node_type = get_llvm_node_type(module.get(), &root);
+  // root_size = tlctx_->get_type_size(node_type);
 
   tlctx_->add_struct_module(std::move(module), root.get_snode_tree_id());
 }
@@ -397,21 +397,29 @@ llvm::Type *StructCompilerLLVM::get_stub(llvm::Module *module,
 
 llvm::Type *StructCompilerLLVM::get_llvm_node_type(llvm::Module *module,
                                                    SNode *snode) {
+  std::cout << "StructCompilerLLVM::get_llvm_node_type: "
+            << snode->node_type_name << " snode id " << snode->id << "\n";
   return get_stub(module, snode, 0);
 }
 
 llvm::Type *StructCompilerLLVM::get_llvm_body_type(llvm::Module *module,
                                                    SNode *snode) {
+  std::cout << "StructCompilerLLVM::get_llvm_body_type: "
+            << snode->node_type_name << " snode id " << snode->id << "\n";
   return get_stub(module, snode, 1);
 }
 
 llvm::Type *StructCompilerLLVM::get_llvm_aux_type(llvm::Module *module,
                                                   SNode *snode) {
+  std::cout << "StructCompilerLLVM::get_llvm_aux_type: "
+            << snode->node_type_name << " snode id " << snode->id << "\n";
   return get_stub(module, snode, 2);
 }
 
 llvm::Type *StructCompilerLLVM::get_llvm_element_type(llvm::Module *module,
                                                       SNode *snode) {
+  std::cout << "StructCompilerLLVM::get_llvm_element_type: "
+            << snode->node_type_name << " snode id " << snode->id << "\n";
   return get_stub(module, snode, 3);
 }
 

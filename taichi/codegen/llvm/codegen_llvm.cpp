@@ -265,10 +265,11 @@ void TaskCodeGenLLVM::emit_struct_meta_base(const std::string &name,
   std::size_t element_size;
   std::size_t max_num_elements;
   if (snode->type == SNodeType::dense) {
-    auto body_type =
-        StructCompilerLLVM::get_llvm_body_type(module.get(), snode);
-    auto element_ty = body_type->getArrayElementType();
-    element_size = tlctx->get_type_size(element_ty);
+    // auto body_type =
+    //     StructCompilerLLVM::get_llvm_body_type(module.get(), snode);
+    // auto element_ty = body_type->getArrayElementType();
+    // element_size = tlctx->get_type_size(element_ty);
+    element_size = 4;  // TODO: get from runtime
     max_num_elements = 1; // TODO: less hacky :)
   } else if (snode->type == SNodeType::pointer) {
     auto element_ty = StructCompilerLLVM::get_llvm_node_type(
@@ -1728,19 +1729,23 @@ llvm::Value *TaskCodeGenLLVM::call_struct_func(int tree_id,
 }
 
 void TaskCodeGenLLVM::visit(GetRootStmt *stmt) {
+  std::cout << "TaskCodeGenLLVM::visit(GetRootStmt *)" << std::endl;
+  irpass::print(stmt);
   if (stmt->root() == nullptr)
     llvm_val[stmt] = builder->CreateBitCast(
         get_root(SNodeTree::kFirstID),
-        llvm::PointerType::get(
-            StructCompilerLLVM::get_llvm_node_type(
-                module.get(), prog->get_snode_root(SNodeTree::kFirstID)),
-            0));
+        llvm::Type::getInt8PtrTy(*llvm_context));
+        // llvm::PointerType::get(
+        //     StructCompilerLLVM::get_llvm_node_type(
+        //         module.get(), prog->get_snode_root(SNodeTree::kFirstID)),
+        //     0));
   else
     llvm_val[stmt] = builder->CreateBitCast(
         get_root(stmt->root()->get_snode_tree_id()),
-        llvm::PointerType::get(
-            StructCompilerLLVM::get_llvm_node_type(module.get(), stmt->root()),
-            0));
+        llvm::Type::getInt8PtrTy(*llvm_context));
+        // llvm::PointerType::get(
+        //     StructCompilerLLVM::get_llvm_node_type(module.get(), stmt->root()),
+        //     0));
 }
 
 struct ShapeInfo {
@@ -1849,6 +1854,8 @@ void TaskCodeGenLLVM::visit(SNodeLookupStmt *stmt) {
 }
 
 void TaskCodeGenLLVM::visit(GetChStmt *stmt) {
+    std::cout << "TaskCodeGenLLVM::visit(GetChStmt *stmt): ch = " << std::endl;
+    irpass::print(stmt);
   if (stmt->input_snode->type == SNodeType::quant_array) {
     llvm_val[stmt] = llvm_val[stmt->input_ptr];
   } else if (stmt->ret_type->as<PointerType>()->is_bit_pointer()) {
@@ -1864,9 +1871,12 @@ void TaskCodeGenLLVM::visit(GetChStmt *stmt) {
         builder->CreateBitCast(llvm_val[stmt->input_ptr],
                                llvm::PointerType::getInt8PtrTy(*llvm_context)));
     llvm_val[stmt] = builder->CreateBitCast(
-        ch, llvm::PointerType::get(StructCompilerLLVM::get_llvm_node_type(
-                                       module.get(), stmt->output_snode),
-                                   0));
+        ch,
+        llvm::PointerType::getInt8PtrTy(*llvm_context));
+        // llvm::PointerType::get(StructCompilerLLVM::get_llvm_node_type(
+        //                                module.get(), stmt->output_snode),
+        //                            0));
+    std::cout << "did visit(GetChStmt *)" << std::endl;
   }
 }
 
@@ -2729,6 +2739,7 @@ void TaskCodeGenLLVM::emit_to_module() {
 }
 
 LLVMCompiledTask TaskCodeGenLLVM::run_compilation() {
+  std::cout << ">>> TaskCodeGenLLVM::run_compilation()" << std::endl;
   // Final lowering
   auto offload_to_executable = [](IRNode *ir, const CompileConfig &config,
                                   const Kernel *kernel) {
@@ -2803,6 +2814,7 @@ LLVMCompiledTask TaskCodeGenLLVM::run_compilation() {
     }
   }
 
+  std::cout << "<<< TaskCodeGenLLVM::run_compilation()" << std::endl;
   return {std::move(offloaded_tasks), std::move(module),
           std::move(used_tree_ids), std::move(struct_for_tls_sizes)};
 }
