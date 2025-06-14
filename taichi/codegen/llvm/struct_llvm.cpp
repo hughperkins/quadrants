@@ -49,15 +49,37 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
   // create children type that supports forking...
 
   std::vector<llvm::Type *> ch_types;
+  size_t curr_offset = 0;
   for (int i = 0; i < snode.ch.size(); i++) {
     std::cout << " ch " << i << std::endl;
+    // size_t ch_offset = curr_offset;
+      ch_offsets.push_back(curr_offset);
+      auto ch_snode = snode.ch[i].get();
+      ch_snode_ids.push_back(ch_snode->id);
     if (!snode.ch[i]->is_bit_level) {
       // Bit-level SNodes do not really have a corresponding LLVM type
       auto ch = get_llvm_node_type(module.get(), snode.ch[i].get());
+      std::cout << " ch struct numelements " << ch->getStructNumElements() <<
+         " array num elements " << ch->getArrayNumElements() << 
+         " is array ty " << ch->isArrayTy() << " " <<  " is vector ty " << ch->isVectorTy() << std::endl;
       ch->print(llvm::outs());
       llvm::outs() << "\n";
       ch_types.push_back(ch);
+      if(ch->isArrayTy()) {
+        auto elem_ty = llvm::cast<llvm::ArrayType>(ch)->getElementType();
+      std::cout << " array elem type: ";
+      elem_ty->print(llvm::outs());
+      llvm::outs() << "\n";
+      // std::cout << "elem_ty integer bit width " << elem_ty->getIntegerBitWidth() << " bits\n";
+      // std::cout << elem_ty->
+      const llvm::DataLayout &dl = module->getDataLayout();
+    std::cout << "elem_ty size in bytes: " << dl.getTypeAllocSize(elem_ty) << "\n";
+        curr_offset += dl.getTypeAllocSize(elem_ty) * ch->getArrayNumElements();
+      }
     }
+  }
+  for(auto i = 0; i < ch_offsets.size(); i++) {
+    std::cout << " ch " << i << " " << ch_snode_ids[i] << " offset: " << ch_offsets[i] << std::endl;
   }
   std::cout << "StructCompilerLLVM::generate_types: "
             << "ch_types.size() = " << ch_types.size() << "\n";
@@ -213,6 +235,11 @@ void StructCompilerLLVM::generate_refine_coordinates(SNode *snode) {
   builder.CreateRetVoid();
 }
 
+// define ptr @get_ch_S4_to_S5(ptr %0) {
+// entry:
+//   %getch = getelementptr %S4_ch, ptr %0, i32 0, i32 0
+//   ret ptr %getch
+// }
 void StructCompilerLLVM::generate_child_accessors(SNode &snode) {
   TI_AUTO_PROF;
   auto type = snode.type;
@@ -228,32 +255,77 @@ void StructCompilerLLVM::generate_child_accessors(SNode &snode) {
     // create the get ch function
     auto parent = snode.parent;
 
-    auto inp_type =
-        llvm::PointerType::get(get_llvm_element_type(module.get(), parent), 0);
-
     auto ft =
         llvm::FunctionType::get(llvm::Type::getInt8PtrTy(*llvm_ctx_),
                                 {llvm::Type::getInt8PtrTy(*llvm_ctx_)}, false);
 
-    auto func = create_function(ft, snode.get_ch_from_parent_func_name());
+    // auto funcfoo = create_function(ft, "foobar" + snode.get_ch_from_parent_func_name());
+    auto funcfoo = create_function(ft, snode.get_ch_from_parent_func_name());
 
-    auto bb = llvm::BasicBlock::Create(*llvm_ctx_, "entry", func);
+      std::cout << "StructCompilerLLVM::generate_child_accessors: "
+                << snode.get_ch_from_parent_func_name() << std::endl;
+      for(auto i = 0; i < ch_offsets.size(); i++) {
+    // std::cout << " ch " << i << " offset: " << ch_offsets[i] << std::endl;
+    std::cout << " ch " << i << " " << ch_snode_ids[i] << " offset: " << ch_offsets[i] << std::endl;
+  }
 
-    llvm::IRBuilder<> builder(bb, bb->begin());
-    std::vector<llvm::Value *> args;
+    auto bb2 =
+     llvm::BasicBlock::Create(*llvm_ctx_, "entry", funcfoo);
 
-    for (auto &arg : func->args()) {
-      args.push_back(&arg);
+    llvm::IRBuilder<> builder2(bb2, bb2->begin());
+    std::vector<llvm::Value *> args2;
+
+    for (auto &arg : funcfoo->args()) {
+      args2.push_back(&arg);
     }
-    llvm::Value *ret;
-    ret = builder.CreateGEP(get_llvm_element_type(module.get(), parent),
-                            builder.CreateBitCast(args[0], inp_type),
-                            {tlctx_->get_constant(0),
-                             tlctx_->get_constant(parent->child_id(&snode))},
-                            "getch");
 
-    builder.CreateRet(
-        builder.CreateBitCast(ret, llvm::Type::getInt8PtrTy(*llvm_ctx_)));
+    size_t offset = 0;
+    if(parent != nullptr && parent->parent == nullptr) {
+      std::cout << "parent is root snode\n";
+      for(int i = 0; i < ch_offsets.size(); i++) {
+        if(ch_snode_ids[i] == snode.id) {
+          offset = ch_offsets[i];
+          break;
+        }
+      }
+      // offset = ch_offsets[]
+      // offset = parent->child_id(&snode);
+    }
+    std::cout << "offset: " << offset << std::endl;
+    llvm::Value *snode_ptr = builder2.CreateGEP(
+        llvm::Type::getInt8Ty(*llvm_ctx_),
+        builder2.CreateBitCast(args2[0], llvm::Type::getInt8PtrTy(*llvm_ctx_)),
+        tlctx_->get_constant(offset));
+
+    // builder.CreateRet(args[0]);
+    // builder2.CreateRet(
+    //     builder2.CreateBitCast(args2[0], llvm::Type::getInt8PtrTy(*llvm_ctx_)));
+    builder2.CreateRet(snode_ptr);
+      //  builder2.CreateBitCast( snode_ptr, llvm::Type::getInt8PtrTy(*llvm_ctx_));
+
+    //       auto inp_type =
+    //     llvm::PointerType::get(get_llvm_element_type(module.get(), parent), 0);
+
+
+    // auto func = create_function(ft, snode.get_ch_from_parent_func_name());
+
+    // auto bb = llvm::BasicBlock::Create(*llvm_ctx_, "entry", func);
+
+    // llvm::IRBuilder<> builder(bb, bb->begin());
+    // std::vector<llvm::Value *> args;
+
+    // for (auto &arg : func->args()) {
+    //   args.push_back(&arg);
+    // }
+    // llvm::Value *ret;
+    // ret = builder.CreateGEP(get_llvm_element_type(module.get(), parent),
+    //                         builder.CreateBitCast(args[0], inp_type),
+    //                         {tlctx_->get_constant(0),
+    //                          tlctx_->get_constant(parent->child_id(&snode))},
+    //                         "getch");
+
+    // builder.CreateRet(
+    //     builder.CreateBitCast(ret, llvm::Type::getInt8PtrTy(*llvm_ctx_)));
   }
 
   for (auto &ch : snode.ch) {
