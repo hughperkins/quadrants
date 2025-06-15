@@ -1731,16 +1731,11 @@ void TaskCodeGenLLVM::visit(GetRootStmt *stmt) {
   if (stmt->root() == nullptr)
     llvm_val[stmt] = builder->CreateBitCast(
         get_root(SNodeTree::kFirstID),
-        llvm::PointerType::get(
-            StructCompilerLLVM::get_llvm_node_type(
-                module.get(), prog->get_snode_root(SNodeTree::kFirstID)),
-            0));
+        llvm::Type::getInt8PtrTy(*llvm_context));
   else
     llvm_val[stmt] = builder->CreateBitCast(
         get_root(stmt->root()->get_snode_tree_id()),
-        llvm::PointerType::get(
-            StructCompilerLLVM::get_llvm_node_type(module.get(), stmt->root()),
-            0));
+        llvm::Type::getInt8PtrTy(*llvm_context));
 }
 
 struct ShapeInfo {
