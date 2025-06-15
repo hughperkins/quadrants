@@ -49,11 +49,20 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
   // create children type that supports forking...
 
   std::vector<llvm::Type *> ch_types;
+  size_t curr_offset = 0;
   for (int i = 0; i < snode.ch.size(); i++) {
     std::cout << " ch " << i << std::endl;
+    ch_offsets.push_back(curr_offset);
+    auto ch_snode = snode.ch[i].get();
+    ch_snode_ids.push_back(ch_snode->id);
     if (!snode.ch[i]->is_bit_level) {
       // Bit-level SNodes do not really have a corresponding LLVM type
       auto ch = get_llvm_node_type(module.get(), snode.ch[i].get());
+      if(ch->isArrayTy()) {
+      std::cout << " ch array num elements " <<
+         " array num elements " << ch->getArrayNumElements() << 
+         " is array ty " << ch->isArrayTy() << " " <<  " is vector ty " << ch->isVectorTy() << std::endl;
+      }
       ch->print(llvm::outs());
       llvm::outs() << "\n";
       ch_types.push_back(ch);
@@ -325,21 +334,29 @@ llvm::Type *StructCompilerLLVM::get_stub(llvm::Module *module,
 
 llvm::Type *StructCompilerLLVM::get_llvm_node_type(llvm::Module *module,
                                                    SNode *snode) {
+  std::cout << "StructCompilerLLVM::get_llvm_node_type: "
+            << snode->node_type_name << " snode id " << snode->id << "\n";
   return get_stub(module, snode, 0);
 }
 
 llvm::Type *StructCompilerLLVM::get_llvm_body_type(llvm::Module *module,
                                                    SNode *snode) {
+  std::cout << "StructCompilerLLVM::get_llvm_body_type: "
+            << snode->node_type_name << " snode id " << snode->id << "\n";
   return get_stub(module, snode, 1);
 }
 
 llvm::Type *StructCompilerLLVM::get_llvm_aux_type(llvm::Module *module,
                                                   SNode *snode) {
+  std::cout << "StructCompilerLLVM::get_llvm_aux_type: "
+            << snode->node_type_name << " snode id " << snode->id << "\n";
   return get_stub(module, snode, 2);
 }
 
 llvm::Type *StructCompilerLLVM::get_llvm_element_type(llvm::Module *module,
                                                       SNode *snode) {
+  std::cout << "StructCompilerLLVM::get_llvm_element_type: "
+           << snode->node_type_name << " snode id " << snode->id << "\n";
   return get_stub(module, snode, 3);
 }
 

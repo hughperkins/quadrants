@@ -50,6 +50,8 @@ class StructCompilerLLVM : public StructCompiler, public LLVMModuleBuilder {
   TaichiLLVMContext *const tlctx_;
   llvm::LLVMContext *const llvm_ctx_;
   int snode_tree_id_;
+  std::vector<size_t> ch_offsets;
+  std::vector<int> ch_snode_ids;
 };
 
 }  // namespace taichi::lang
