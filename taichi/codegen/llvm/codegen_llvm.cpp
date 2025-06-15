@@ -2749,7 +2749,22 @@ LLVMCompiledTask TaskCodeGenLLVM::run_compilation() {
 
   offload_to_executable(ir, compile_config, kernel);
 
+  const char *dump_ir_env = std::getenv("TAICHI_DUMP_IR");
+  const std::string dumpOutDir = "/tmp/ir/";
+  if (dump_ir_env != nullptr) {
+    std::filesystem::create_directories(dumpOutDir);
+    std::string filename = dumpOutDir + "/" + kernel->name + "_before_emit_module.ll";
+    std::ofstream out_file(filename);
+    if (out_file.is_open()) {
+      std::string outString;
+      irpass::print(ir, &outString);
+      out_file << outString;
+      out_file.close();
+    }
+  }
+
   emit_to_module();
+
   eliminate_unused_functions();
 
   if (compile_config.arch == Arch::cuda) {
@@ -2766,31 +2781,22 @@ LLVMCompiledTask TaskCodeGenLLVM::run_compilation() {
       tlctx->mark_function_as_amdgpu_kernel(func);
     }
   }
-  const char *dump_ir_env = std::getenv("TAICHI_DUMP_IR");
-  const std::string dumpOutDir = "/tmp/ir/";
+
   if (dump_ir_env != nullptr) {
     std::filesystem::create_directories(dumpOutDir);
 
     std::string filename = dumpOutDir + "/" + kernel->name + "_llvm.ll";
-    // std::ofstream out_file(filename);
     std::error_code EC;
     llvm::raw_fd_ostream dest_file(filename, EC);
-    // if (out_file.is_open()) {
     if (!EC) {
-      // std::string outString;
       module->print(dest_file, nullptr);
-      // irpass::print(ir, &outString);
-      // out_file << outString;
-      // out_file.close();
     }
   }
 
   const char *load_ir_env = std::getenv("TAICHI_LOAD_IR");
-  // if (const char *load_ir_path = std::getenv("TAICHI_LOAD_IR_FILE")) {
   if (load_ir_env != nullptr) {
     std::string filename = dumpOutDir + "/" + kernel->name + "_llvm.ll";
     llvm::SMDiagnostic err;
-    // auto loaded_module = llvm::parseIRFile(load_ir_path, err, *llvm_context);
     auto loaded_module = llvm::parseAssemblyFile(filename, err, *llvm_context);
     if (!loaded_module) {
       err.print("TAICHI_LOAD_IR_FILE error", llvm::errs());
@@ -2798,8 +2804,6 @@ LLVMCompiledTask TaskCodeGenLLVM::run_compilation() {
     } else {
       // Replace the current module with the loaded one
       module = std::move(loaded_module);
-      // You might need to update offloaded_tasks and other data based on the
-      // loaded module
     }
   }
 
