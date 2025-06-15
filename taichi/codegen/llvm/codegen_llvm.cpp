@@ -1859,9 +1859,8 @@ void TaskCodeGenLLVM::visit(GetChStmt *stmt) {
         builder->CreateBitCast(llvm_val[stmt->input_ptr],
                                llvm::PointerType::getInt8PtrTy(*llvm_context)));
     llvm_val[stmt] = builder->CreateBitCast(
-        ch, llvm::PointerType::get(StructCompilerLLVM::get_llvm_node_type(
-                                       module.get(), stmt->output_snode),
-                                   0));
+        ch,
+        llvm::Type::getInt8PtrTy(*llvm_context));
   }
 }
 
