@@ -23,6 +23,8 @@ class StructCompilerLLVM : public StructCompiler, public LLVMModuleBuilder {
 
   void generate_types(SNode &snode) override;
 
+  void generate_child_accessor(SNode &snode);
+
   void generate_child_accessors(SNode &snode) override;
 
   void run(SNode &node) override;

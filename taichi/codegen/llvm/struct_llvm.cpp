@@ -242,25 +242,14 @@ void StructCompilerLLVM::generate_refine_coordinates(SNode *snode) {
   builder.CreateRetVoid();
 }
 
-void StructCompilerLLVM::generate_child_accessors(SNode &snode) {
-  TI_AUTO_PROF;
-  auto type = snode.type;
-  stack.push_back(&snode);
-
-  bool is_leaf = type == SNodeType::place;
-
-  if (!is_leaf) {
-    generate_refine_coordinates(&snode);
-  }
-
-  if (snode.parent != nullptr) {
+void StructCompilerLLVM::generate_child_accessor(SNode &snode) {
     auto parent = snode.parent;
 
     auto ft =
         llvm::FunctionType::get(llvm::Type::getInt8PtrTy(*llvm_ctx_),
                                 {llvm::Type::getInt8PtrTy(*llvm_ctx_)}, false);
 
-    auto funcfoo = create_function(ft, snode.get_ch_from_parent_func_name());
+    auto func = create_function(ft, snode.get_ch_from_parent_func_name());
 
     std::cout << "StructCompilerLLVM::generate_child_accessors: "
               << snode.get_ch_from_parent_func_name() << std::endl;
@@ -269,13 +258,13 @@ void StructCompilerLLVM::generate_child_accessors(SNode &snode) {
                 << " offset: " << ch_offsets[i] << std::endl;
     }
 
-    auto bb2 = llvm::BasicBlock::Create(*llvm_ctx_, "entry", funcfoo);
+    auto bb = llvm::BasicBlock::Create(*llvm_ctx_, "entry", func);
 
-    llvm::IRBuilder<> builder2(bb2, bb2->begin());
-    std::vector<llvm::Value *> args2;
+    llvm::IRBuilder<> builder2(bb, bb->begin());
+    std::vector<llvm::Value *> args;
 
-    for (auto &arg : funcfoo->args()) {
-      args2.push_back(&arg);
+    for (auto &arg : func->args()) {
+      args.push_back(&arg);
     }
 
     size_t offset = 0;
@@ -291,10 +280,25 @@ void StructCompilerLLVM::generate_child_accessors(SNode &snode) {
     std::cout << "offset: " << offset << std::endl;
     llvm::Value *snode_ptr = builder2.CreateGEP(
         llvm::Type::getInt8Ty(*llvm_ctx_),
-        builder2.CreateBitCast(args2[0], llvm::Type::getInt8PtrTy(*llvm_ctx_)),
+        builder2.CreateBitCast(args[0], llvm::Type::getInt8PtrTy(*llvm_ctx_)),
         tlctx_->get_constant(offset));
 
     builder2.CreateRet(snode_ptr);
+}
+
+void StructCompilerLLVM::generate_child_accessors(SNode &snode) {
+  TI_AUTO_PROF;
+  auto type = snode.type;
+  stack.push_back(&snode);
+
+  bool is_leaf = type == SNodeType::place;
+
+  if (!is_leaf) {
+    generate_refine_coordinates(&snode);
+  }
+
+  if (snode.parent != nullptr) {
+    generate_child_accessor(snode);
   }
 
   for (auto &ch : snode.ch) {
