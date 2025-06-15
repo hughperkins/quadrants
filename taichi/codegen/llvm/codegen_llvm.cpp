@@ -265,10 +265,11 @@ void TaskCodeGenLLVM::emit_struct_meta_base(const std::string &name,
   std::size_t element_size;
   std::size_t max_num_elements;
   if (snode->type == SNodeType::dense) {
-    auto body_type =
-        StructCompilerLLVM::get_llvm_body_type(module.get(), snode);
-    auto element_ty = body_type->getArrayElementType();
-    element_size = tlctx->get_type_size(element_ty);
+    // auto body_type =
+    //     StructCompilerLLVM::get_llvm_body_type(module.get(), snode);
+    // auto element_ty = body_type->getArrayElementType();
+    // element_size = tlctx->get_type_size(element_ty);
+    element_size = 4; // TODO: get the element size, but without writing out the stubs
     max_num_elements = 1; // TODO: less hacky :)
   } else if (snode->type == SNodeType::pointer) {
     auto element_ty = StructCompilerLLVM::get_llvm_node_type(
