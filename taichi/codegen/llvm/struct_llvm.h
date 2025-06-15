@@ -54,6 +54,8 @@ class StructCompilerLLVM : public StructCompiler, public LLVMModuleBuilder {
   int snode_tree_id_;
   std::vector<size_t> ch_offsets;
   std::vector<int> ch_snode_ids;
+  static std::map<int, llvm::Type *> llvm_node_type_by_snode_id_;
+  static std::map<int, llvm::Type *> llvm_body_type_by_snode_id_;
 };
 
 }  // namespace taichi::lang

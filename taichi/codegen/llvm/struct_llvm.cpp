@@ -161,6 +161,9 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
   TI_ASSERT(node_type != nullptr);
   TI_ASSERT(body_type != nullptr);
 
+  llvm_node_type_by_snode_id_[snode.id] = node_type;
+  llvm_body_type_by_snode_id_[snode.id] = body_type;
+
   // Here we create a stub holding 4 LLVM types as struct members.
   // The aim is to give a **unique** name to the stub, so that we can look up
   // these types using this name. This decouples them from the LLVM context.
@@ -369,16 +372,12 @@ llvm::Type *StructCompilerLLVM::get_stub(llvm::Module *module,
 
 llvm::Type *StructCompilerLLVM::get_llvm_node_type(llvm::Module *module,
                                                    SNode *snode) {
-  std::cout << "StructCompilerLLVM::get_llvm_node_type: "
-            << snode->node_type_name << " snode id " << snode->id << "\n";
-  return get_stub(module, snode, 0);
+  return llvm_node_type_by_snode_id_[snode->id];
 }
 
 llvm::Type *StructCompilerLLVM::get_llvm_body_type(llvm::Module *module,
                                                    SNode *snode) {
-  std::cout << "StructCompilerLLVM::get_llvm_body_type: "
-            << snode->node_type_name << " snode id " << snode->id << "\n";
-  return get_stub(module, snode, 1);
+  return llvm_body_type_by_snode_id_[snode->id];
 }
 
 llvm::Type *StructCompilerLLVM::get_llvm_aux_type(llvm::Module *module,
@@ -400,5 +399,8 @@ llvm::Function *StructCompilerLLVM::create_function(llvm::FunctionType *ft,
   return llvm::Function::Create(ft, llvm::Function::ExternalLinkage, func_name,
                                 *module);
 }
+
+std::map<int, llvm::Type *> StructCompilerLLVM::llvm_node_type_by_snode_id_;
+std::map<int, llvm::Type *> StructCompilerLLVM::llvm_body_type_by_snode_id_;
 
 }  // namespace taichi::lang
