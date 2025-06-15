@@ -165,28 +165,6 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
   llvm_body_type_by_snode_id_[snode.id] = body_type;
   llvm_aux_type_by_snode_id_[snode.id] = aux_type ? aux_type : llvm::Type::getInt8Ty(*ctx);
   llvm_element_type_by_snode_id_[snode.id] = ch_type;
-
-  // Here we create a stub holding 4 LLVM types as struct members.
-  // The aim is to give a **unique** name to the stub, so that we can look up
-  // these types using this name. This decouples them from the LLVM context.
-  // Note that body_type might not have a unique name, since literal structs
-  // (such as {i32, i32}) cannot be aliased in LLVM.
-  auto stub = llvm::StructType::create(
-      *ctx,
-      {node_type, body_type, aux_type ? aux_type : llvm::Type::getInt8Ty(*ctx),
-       // aux_type might be null
-       ch_type},
-      type_stub_name(&snode));
-  // irpass::print(stub);
-  std::cout << "StructCompilerLLVM::generate_types: " << type_stub_name(&snode)
-            << "\n";
-  stub->print(llvm::outs());
-  llvm::outs() << "\n";
-
-  // Create a dummy function in the module with the type stub as return type
-  // so that the type is referenced in the module
-  auto ft = llvm::FunctionType::get(stub, false);
-  create_function(ft, type_stub_name(&snode) + "_func");
 }
 
 void StructCompilerLLVM::generate_refine_coordinates(SNode *snode) {
