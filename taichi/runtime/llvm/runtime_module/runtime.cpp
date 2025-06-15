@@ -139,6 +139,8 @@ void taichi_printf(LLVMRuntime *runtime, const char *format, Args &&...args);
 
 extern "C" {
 
+struct LLVMRuntime *p_LLVMRuntime = 0;
+
 // This is not really a runtime function. Include this in a function body to
 // mark it as force no inline. Helpful when preventing inlining huge function
 // bodies.
@@ -947,6 +949,7 @@ void runtime_initialize(
     runtime =
         (LLVMRuntime *)host_allocator(memory_pool, sizeof(LLVMRuntime), 128);
   }
+  p_LLVMRuntime = runtime;
 
   PreallocatedMemoryChunk runtime_objects_chunk;
   runtime_objects_chunk.preallocated_size = preallocated_size;
