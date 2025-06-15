@@ -40,8 +40,9 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
   if (snode.is_bit_level)
     return;
   llvm::Type *node_type = nullptr;
-  std::cout << "StructCompilerLLVM::generate_types: "
-            << snode.type_name() << " snode id " << snode.id << " " << snode.type_name() << " " << snode.node_type_name << "\n";
+  std::cout << "StructCompilerLLVM::generate_types: " << snode.type_name()
+            << " snode id " << snode.id << " " << snode.type_name() << " "
+            << snode.node_type_name << "\n";
 
   auto ctx = llvm_ctx_;
   TI_ASSERT(ctx == tlctx_->get_this_thread_context());
@@ -58,19 +59,21 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
     if (!snode.ch[i]->is_bit_level) {
       // Bit-level SNodes do not really have a corresponding LLVM type
       auto ch = get_llvm_node_type(module.get(), snode.ch[i].get());
-      if(ch->isArrayTy()) {
-        std::cout << " ch array num elements " <<
-          " array num elements " << ch->getArrayNumElements() << 
-          " is array ty " << ch->isArrayTy() << " " <<  " is vector ty " << ch->isVectorTy() << std::endl;
+      if (ch->isArrayTy()) {
+        std::cout << " ch array num elements " << " array num elements "
+                  << ch->getArrayNumElements() << " is array ty "
+                  << ch->isArrayTy() << " " << " is vector ty "
+                  << ch->isVectorTy() << std::endl;
         auto elem_ty = llvm::cast<llvm::ArrayType>(ch)->getElementType();
         std::cout << " array elem type: ";
         elem_ty->print(llvm::outs());
         llvm::outs() << "\n";
-        // std::cout << "elem_ty integer bit width " << elem_ty->getIntegerBitWidth() << " bits\n";
-        // std::cout << elem_ty->
+        // std::cout << "elem_ty integer bit width " <<
+        // elem_ty->getIntegerBitWidth() << " bits\n"; std::cout << elem_ty->
         const llvm::DataLayout &dl = module->getDataLayout();
-        std::cout << "elem_ty size in bytes: " << dl.getTypeAllocSize(elem_ty) << "\n";
-        
+        std::cout << "elem_ty size in bytes: " << dl.getTypeAllocSize(elem_ty)
+                  << "\n";
+
         curr_offset += dl.getTypeAllocSize(elem_ty) * ch->getArrayNumElements();
       }
       ch->print(llvm::outs());
@@ -78,8 +81,9 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
       ch_types.push_back(ch);
     }
   }
-  for(auto i = 0; i < ch_offsets.size(); i++) {
-    std::cout << " ch " << i << " " << ch_snode_ids[i] << " offset: " << ch_offsets[i] << std::endl;
+  for (auto i = 0; i < ch_offsets.size(); i++) {
+    std::cout << " ch " << i << " " << ch_snode_ids[i]
+              << " offset: " << ch_offsets[i] << std::endl;
   }
   std::cout << "StructCompilerLLVM::generate_types: "
             << "ch_types.size() = " << ch_types.size() << "\n";
@@ -169,8 +173,8 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
        ch_type},
       type_stub_name(&snode));
   // irpass::print(stub);
-  std::cout << "StructCompilerLLVM::generate_types: "
-            << type_stub_name(&snode) << "\n";
+  std::cout << "StructCompilerLLVM::generate_types: " << type_stub_name(&snode)
+            << "\n";
   stub->print(llvm::outs());
   llvm::outs() << "\n";
 
@@ -219,14 +223,17 @@ void StructCompilerLLVM::generate_refine_coordinates(SNode *snode) {
       // Use UDiv/URem instead of SDiv/SRem so that LLVM can optimize them
       // into bitwise operations when the divisor is a power of two.
       // std::cout << "   urem " << (snode->extractors[i].acc_shape *
-      //                                  snode->extractors[i].shape) << " udiv " << (snode->extractors[i].acc_shape) << std::endl;
+      //                                  snode->extractors[i].shape) << " udiv
+      //                                  " << (snode->extractors[i].acc_shape)
+      //                                  << std::endl;
       // addition = builder.CreateUDiv(builder.CreateURem(l, prev), next);
     }
     auto in = call(&builder, "PhysicalCoordinates_get_val", inp_coords,
                    tlctx_->get_constant(i));
     //   std::cout << "   mul " << snode->extractors[i].shape << std::endl;
     // in =
-    //     builder.CreateMul(in, tlctx_->get_constant(snode->extractors[i].shape));
+    //     builder.CreateMul(in,
+    //     tlctx_->get_constant(snode->extractors[i].shape));
     // auto added = builder.CreateAdd(in, addition);
     auto added = in;
     call(&builder, "PhysicalCoordinates_set_val", outp_coords,
@@ -329,9 +336,8 @@ void StructCompilerLLVM::run(SNode &root) {
 
     std::string filename =
         dumpOutDir + "/" + std::string(module->getName()) + "_{:04d}_llvm.ll";
-        static FileSequenceWriter writer(filename,
-                                     "struct LLVM IR");
-        writer.write(module.get());
+    static FileSequenceWriter writer(filename, "struct LLVM IR");
+    writer.write(module.get());
   }
 
   TI_ASSERT((int)snodes.size() <= taichi_max_num_snodes);
@@ -381,7 +387,7 @@ llvm::Type *StructCompilerLLVM::get_llvm_aux_type(llvm::Module *module,
 llvm::Type *StructCompilerLLVM::get_llvm_element_type(llvm::Module *module,
                                                       SNode *snode) {
   std::cout << "StructCompilerLLVM::get_llvm_element_type: "
-           << snode->node_type_name << " snode id " << snode->id << "\n";
+            << snode->node_type_name << " snode id " << snode->id << "\n";
   return get_stub(module, snode, 3);
 }
 
