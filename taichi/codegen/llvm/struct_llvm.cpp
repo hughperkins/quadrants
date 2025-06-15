@@ -357,21 +357,6 @@ void StructCompilerLLVM::run(SNode &root) {
   tlctx_->add_struct_module(std::move(module), root.get_snode_tree_id());
 }
 
-llvm::Type *StructCompilerLLVM::get_stub(llvm::Module *module,
-                                         SNode *snode,
-                                         uint32 index) {
-  TI_ASSERT(module);
-  TI_ASSERT(snode);
-  auto stub = llvm::StructType::getTypeByName(module->getContext(),
-                                              type_stub_name(snode));
-  TI_ASSERT(stub);
-  TI_ASSERT(stub->getStructNumElements() == 4);
-  TI_ASSERT(0 <= index && index < 4);
-  auto type = stub->getContainedType(index);
-  TI_ASSERT(type);
-  return type;
-}
-
 llvm::Type *StructCompilerLLVM::get_llvm_node_type(llvm::Module *module,
                                                    SNode *snode) {
   return llvm_node_type_by_snode_id_[snode->id];

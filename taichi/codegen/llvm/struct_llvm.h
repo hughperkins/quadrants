@@ -36,8 +36,6 @@ class StructCompilerLLVM : public StructCompiler, public LLVMModuleBuilder {
 
   static std::string type_stub_name(SNode *snode);
 
-  static llvm::Type *get_stub(llvm::Module *module, SNode *snode, uint32 index);
-
   static llvm::Type *get_llvm_node_type(llvm::Module *module, SNode *snode);
 
   static llvm::Type *get_llvm_body_type(llvm::Module *module, SNode *snode);
