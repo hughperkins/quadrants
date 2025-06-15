@@ -163,6 +163,8 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
 
   llvm_node_type_by_snode_id_[snode.id] = node_type;
   llvm_body_type_by_snode_id_[snode.id] = body_type;
+  llvm_aux_type_by_snode_id_[snode.id] = aux_type ? aux_type : llvm::Type::getInt8Ty(*ctx);
+  llvm_element_type_by_snode_id_[snode.id] = ch_type;
 
   // Here we create a stub holding 4 LLVM types as struct members.
   // The aim is to give a **unique** name to the stub, so that we can look up
@@ -382,16 +384,12 @@ llvm::Type *StructCompilerLLVM::get_llvm_body_type(llvm::Module *module,
 
 llvm::Type *StructCompilerLLVM::get_llvm_aux_type(llvm::Module *module,
                                                   SNode *snode) {
-  std::cout << "StructCompilerLLVM::get_llvm_aux_type: "
-            << snode->node_type_name << " snode id " << snode->id << "\n";
-  return get_stub(module, snode, 2);
+  return llvm_aux_type_by_snode_id_[snode->id];
 }
 
 llvm::Type *StructCompilerLLVM::get_llvm_element_type(llvm::Module *module,
                                                       SNode *snode) {
-  std::cout << "StructCompilerLLVM::get_llvm_element_type: "
-            << snode->node_type_name << " snode id " << snode->id << "\n";
-  return get_stub(module, snode, 3);
+  return llvm_element_type_by_snode_id_[snode->id];
 }
 
 llvm::Function *StructCompilerLLVM::create_function(llvm::FunctionType *ft,
@@ -402,5 +400,7 @@ llvm::Function *StructCompilerLLVM::create_function(llvm::FunctionType *ft,
 
 std::map<int, llvm::Type *> StructCompilerLLVM::llvm_node_type_by_snode_id_;
 std::map<int, llvm::Type *> StructCompilerLLVM::llvm_body_type_by_snode_id_;
+std::map<int, llvm::Type *> StructCompilerLLVM::llvm_aux_type_by_snode_id_;
+std::map<int, llvm::Type *> StructCompilerLLVM::llvm_element_type_by_snode_id_;
 
 }  // namespace taichi::lang
