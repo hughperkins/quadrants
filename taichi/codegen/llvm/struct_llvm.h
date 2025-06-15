@@ -50,8 +50,7 @@ class StructCompilerLLVM : public StructCompiler, public LLVMModuleBuilder {
   TaichiLLVMContext *const tlctx_;
   llvm::LLVMContext *const llvm_ctx_;
   int snode_tree_id_;
-  std::vector<size_t> ch_offsets;
-  std::vector<int> ch_snode_ids;
+  std::unordered_map<int, size_t> ch_offset_by_snode_id_;
   static std::map<int, llvm::Type *> llvm_node_type_by_snode_id_;
   static std::map<int, llvm::Type *> llvm_body_type_by_snode_id_;
   static std::map<int, llvm::Type *> llvm_aux_type_by_snode_id_;

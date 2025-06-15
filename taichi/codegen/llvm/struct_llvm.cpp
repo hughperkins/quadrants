@@ -53,9 +53,8 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
   size_t curr_offset = 0;
   for (int i = 0; i < snode.ch.size(); i++) {
     std::cout << " ch " << i << std::endl;
-    ch_offsets.push_back(curr_offset);
     auto ch_snode = snode.ch[i].get();
-    ch_snode_ids.push_back(ch_snode->id);
+    ch_offset_by_snode_id_[ch_snode->id] = curr_offset;
     if (!snode.ch[i]->is_bit_level) {
       // Bit-level SNodes do not really have a corresponding LLVM type
       auto ch = get_llvm_node_type(module.get(), snode.ch[i].get());
@@ -81,9 +80,8 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
       ch_types.push_back(ch);
     }
   }
-  for (auto i = 0; i < ch_offsets.size(); i++) {
-    std::cout << " ch " << i << " " << ch_snode_ids[i]
-              << " offset: " << ch_offsets[i] << std::endl;
+  for(auto kv : ch_offset_by_snode_id_) {
+    std::cout << " ch offset by snode id " << kv.first << " : " << kv.second << "\n";
   }
   std::cout << "StructCompilerLLVM::generate_types: "
             << "ch_types.size() = " << ch_types.size() << "\n";
@@ -235,11 +233,8 @@ void StructCompilerLLVM::generate_child_accessor(SNode &snode) {
     auto func = create_function(ft, snode.get_ch_from_parent_func_name());
 
     std::cout << "StructCompilerLLVM::generate_child_accessors: "
-              << snode.get_ch_from_parent_func_name() << std::endl;
-    for (auto i = 0; i < ch_offsets.size(); i++) {
-      std::cout << " ch " << i << " " << ch_snode_ids[i]
-                << " offset: " << ch_offsets[i] << std::endl;
-    }
+              << snode.get_ch_from_parent_func_name() << " snode id " << snode.id << std::endl;
+    std::cout << "parent->child_id(&snode)=" << parent->child_id(&snode) << std::endl;
 
     auto bb = llvm::BasicBlock::Create(*llvm_ctx_, "entry", func);
 
@@ -253,12 +248,7 @@ void StructCompilerLLVM::generate_child_accessor(SNode &snode) {
     size_t offset = 0;
     if (parent != nullptr && parent->parent == nullptr) {
       std::cout << "parent is root snode\n";
-      for (int i = 0; i < ch_offsets.size(); i++) {
-        if (ch_snode_ids[i] == snode.id) {
-          offset = ch_offsets[i];
-          break;
-        }
-      }
+      offset = ch_offset_by_snode_id_[snode.id];
     }
     std::cout << "offset: " << offset << std::endl;
     llvm::Value *snode_ptr = builder2.CreateGEP(
