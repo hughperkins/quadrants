@@ -247,35 +247,47 @@ void StructCompilerLLVM::generate_child_accessors(SNode &snode) {
   }
 
   if (snode.parent != nullptr) {
-    // create the get ch function
     auto parent = snode.parent;
-
-    auto inp_type =
-        llvm::PointerType::get(get_llvm_element_type(module.get(), parent), 0);
 
     auto ft =
         llvm::FunctionType::get(llvm::Type::getInt8PtrTy(*llvm_ctx_),
                                 {llvm::Type::getInt8PtrTy(*llvm_ctx_)}, false);
 
-    auto func = create_function(ft, snode.get_ch_from_parent_func_name());
+    auto funcfoo = create_function(ft, snode.get_ch_from_parent_func_name());
 
-    auto bb = llvm::BasicBlock::Create(*llvm_ctx_, "entry", func);
-
-    llvm::IRBuilder<> builder(bb, bb->begin());
-    std::vector<llvm::Value *> args;
-
-    for (auto &arg : func->args()) {
-      args.push_back(&arg);
+    std::cout << "StructCompilerLLVM::generate_child_accessors: "
+              << snode.get_ch_from_parent_func_name() << std::endl;
+    for (auto i = 0; i < ch_offsets.size(); i++) {
+      std::cout << " ch " << i << " " << ch_snode_ids[i]
+                << " offset: " << ch_offsets[i] << std::endl;
     }
-    llvm::Value *ret;
-    ret = builder.CreateGEP(get_llvm_element_type(module.get(), parent),
-                            builder.CreateBitCast(args[0], inp_type),
-                            {tlctx_->get_constant(0),
-                             tlctx_->get_constant(parent->child_id(&snode))},
-                            "getch");
 
-    builder.CreateRet(
-        builder.CreateBitCast(ret, llvm::Type::getInt8PtrTy(*llvm_ctx_)));
+    auto bb2 = llvm::BasicBlock::Create(*llvm_ctx_, "entry", funcfoo);
+
+    llvm::IRBuilder<> builder2(bb2, bb2->begin());
+    std::vector<llvm::Value *> args2;
+
+    for (auto &arg : funcfoo->args()) {
+      args2.push_back(&arg);
+    }
+
+    size_t offset = 0;
+    if (parent != nullptr && parent->parent == nullptr) {
+      std::cout << "parent is root snode\n";
+      for (int i = 0; i < ch_offsets.size(); i++) {
+        if (ch_snode_ids[i] == snode.id) {
+          offset = ch_offsets[i];
+          break;
+        }
+      }
+    }
+    std::cout << "offset: " << offset << std::endl;
+    llvm::Value *snode_ptr = builder2.CreateGEP(
+        llvm::Type::getInt8Ty(*llvm_ctx_),
+        builder2.CreateBitCast(args2[0], llvm::Type::getInt8PtrTy(*llvm_ctx_)),
+        tlctx_->get_constant(offset));
+
+    builder2.CreateRet(snode_ptr);
   }
 
   for (auto &ch : snode.ch) {
