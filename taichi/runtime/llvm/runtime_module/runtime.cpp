@@ -291,7 +291,24 @@ struct PhysicalCoordinates {
   i32 val[taichi_max_num_indices];
 };
 
-STRUCT_FIELD_ARRAY(PhysicalCoordinates, val);
+extern "C" std::remove_all_extents_t<decltype(PhysicalCoordinates::val)> PhysicalCoordinates_get_val(
+    PhysicalCoordinates *s, int i
+) {
+  if(p_LLVMRuntime != 0) {
+    taichi_printf(p_LLVMRuntime, "PhysicalCoordinates_get_val: %d\n", i);
+  }
+  return s->val[i];
+}
+extern "C" void PhysicalCoordinates_set_val(
+    PhysicalCoordinates *s, int i, std::remove_all_extents_t<decltype(PhysicalCoordinates::val)> f
+) {
+  if(p_LLVMRuntime != 0) {
+    taichi_printf(p_LLVMRuntime, "PhysicalCoordinates_set_val: %d = %i\n", i, f);
+  }
+  s->val[i] = f;
+}
+
+// STRUCT_FIELD_ARRAY(PhysicalCoordinates, val);
 
 #include "taichi/program/context.h"
 
