@@ -235,6 +235,7 @@ void StructCompilerLLVM::generate_child_accessor(SNode &snode) {
     std::cout << "StructCompilerLLVM::generate_child_accessors: "
               << snode.get_ch_from_parent_func_name() << " snode id " << snode.id << std::endl;
     std::cout << "parent->child_id(&snode)=" << parent->child_id(&snode) << std::endl;
+    int parent_child_id = parent->child_id(&snode);
 
     auto bb = llvm::BasicBlock::Create(*llvm_ctx_, "entry", func);
 
@@ -250,9 +251,16 @@ void StructCompilerLLVM::generate_child_accessor(SNode &snode) {
       std::cout << "parent is root snode\n";
       offset = ch_offset_by_snode_id_[snode.id];
     }
+    offset += parent_child_id;
+    // llvm::Value *offset_val = tlctx_->get_constant(offset);
+    // if(parent_child_id != 0) {
+      // llvm::Value *child_id_val = tlctx_->get_constant(parent_child_id);
+      // offset_val = builder2.CreateAdd(offset_val, child_id_val);
+      // offset +=
+    // }
     std::cout << "offset: " << offset << std::endl;
     llvm::Value *snode_ptr = builder2.CreateGEP(
-        llvm::Type::getInt8Ty(*llvm_ctx_),
+        llvm::Type::getInt32Ty(*llvm_ctx_),
         builder2.CreateBitCast(args[0], llvm::Type::getInt8PtrTy(*llvm_ctx_)),
         tlctx_->get_constant(offset));
 
