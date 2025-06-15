@@ -18,6 +18,7 @@
 #if defined(TI_WITH_AMDGPU)
 #include "taichi/rhi/amdgpu/amdgpu_context.h"
 #endif
+#include "taichi/runtime/llvm/runtime_module/shape_info.h"
 
 namespace taichi::lang {
 namespace {
@@ -388,9 +389,9 @@ DevicePtr LlvmRuntimeExecutor::get_snode_tree_device_ptr(int tree_id) {
   return tree_alloc.get_ptr();
 }
 
-struct ShapeInfo {
-  int32_t strides[taichi_max_num_indices];
-};
+// struct ShapeInfo {
+//   int32_t strides[taichi_max_num_indices];
+// };
 
 void LlvmRuntimeExecutor::initialize_snode_shape(int snodeId, struct ShapeInfo shapeInfo) {
   auto *const runtime_jit = get_runtime_jit_module();

@@ -31,6 +31,7 @@
 
 #include "taichi/codegen/llvm/kernel_compiler.h"
 #include "taichi/codegen/llvm/compiled_kernel_data.h"
+#include "taichi/runtime/llvm/runtime_module/shape_info.h"
 
 namespace taichi::lang {
 LlvmProgramImpl::LlvmProgramImpl(CompileConfig &config_,
@@ -64,9 +65,9 @@ void LlvmProgramImpl::compile_snode_tree_types(SNodeTree *tree) {
   cache_field(snode_tree_id, root_id, *struct_compiler);
 }
 
-struct ShapeInfo {
-  int32_t strides[taichi_max_num_indices];
-};
+// struct ShapeInfo {
+//   int32_t strides[taichi_max_num_indices];
+// };
 
 struct ShapeInfo snode_to_shape_info(SNode *snode) {
   struct ShapeInfo shape_info;
@@ -93,6 +94,7 @@ struct ShapeInfo snode_to_shape_info(SNode *snode) {
     for(int k_ = 0; k_ < strides.size(); k_++) {
       shape_info.strides[k_] = strides[k_];
     }
+  shape_info.element_size = snode->cell_size_bytes;
   return shape_info;
 }
 

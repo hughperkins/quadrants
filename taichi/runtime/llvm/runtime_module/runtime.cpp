@@ -25,6 +25,7 @@
 #include "taichi/inc/constants.h"
 #include "taichi/inc/cuda_kernel_utils.inc.h"
 #include "taichi/math/arithmetic.h"
+#include "taichi/runtime/llvm/runtime_module/shape_info.h"
 
 struct RuntimeContext;
 using assert_failed_type = void (*)(const char *);
@@ -570,9 +571,6 @@ struct PreallocatedMemoryChunk {
   std::size_t preallocated_size = 0;
 };
 
-struct ShapeInfo {
-  i32 strides[taichi_max_num_indices];
-};
 // STRUCT_FIELD_ARRAY(ShapeInfo, shape);
 // STRUCT_FIELD(ShapeInfo, num_active_indices);
 
@@ -588,7 +586,7 @@ struct LLVMRuntime {
 
   Ptr roots[kMaxNumSnodeTreesLlvm];
   size_t root_mem_sizes[kMaxNumSnodeTreesLlvm];
-  ShapeInfo snode_shapes[kMaxNumSnodeTreesLlvm];
+  taichi::lang::ShapeInfo snode_shapes[kMaxNumSnodeTreesLlvm];
 
   Ptr thread_pool;
   parallel_for_type parallel_for;
@@ -647,7 +645,7 @@ STRUCT_FIELD_ARRAY(LLVMRuntime, roots);
 STRUCT_FIELD_ARRAY(LLVMRuntime, root_mem_sizes);
 STRUCT_FIELD_ARRAY(LLVMRuntime, snode_shapes);
 
-extern "C" void runtime_LLVMRuntime_set_snode_shapes(LLVMRuntime *runtime, i32 idx, ShapeInfo shapeInfo) {
+extern "C" void runtime_LLVMRuntime_set_snode_shapes(LLVMRuntime *runtime, i32 idx, taichi::lang::ShapeInfo shapeInfo) {
   runtime->snode_shapes[idx] = shapeInfo;
 }
 

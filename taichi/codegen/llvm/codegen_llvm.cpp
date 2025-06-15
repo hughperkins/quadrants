@@ -17,6 +17,7 @@
 #include "taichi/codegen/codegen_utils.h"
 #include "llvm/Support/SourceMgr.h"  // Add this line for SMDiagnostic
 #include "llvm/AsmParser/Parser.h"   // Add this line for parseIRFile
+#include "taichi/runtime/llvm/runtime_module/shape_info.h"
 
 namespace taichi::lang {
 
@@ -1739,9 +1740,9 @@ void TaskCodeGenLLVM::visit(GetRootStmt *stmt) {
         llvm::Type::getInt8PtrTy(*llvm_context));
 }
 
-struct ShapeInfo {
-  int32_t strides[taichi_max_num_indices];
-};
+// struct ShapeInfo {
+//   int32_t strides[taichi_max_num_indices];
+// };
 
 void TaskCodeGenLLVM::visit(LinearizeStmt *stmt) {
   llvm::Value *val = tlctx->get_constant(0);

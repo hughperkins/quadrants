@@ -25,6 +25,13 @@ i32 Dense_get_stride(Ptr meta, int i) {
   return shapeInfo.strides[i];
 }
 
+i32 Dense_get_element_size(Ptr meta) {
+  auto runtime = ((StructMeta *)meta)->runtime;
+  auto shapeInfo = runtime->snode_shapes[((StructMeta *)meta)->snode_id];
+  return shapeInfo.element_size;
+}
+
 Ptr Dense_lookup_element(Ptr meta, Ptr node, int i) {
-  return node + ((StructMeta *)meta)->element_size * i;
+  // return node + ((StructMeta *)meta)->element_size * i;
+  return node + Dense_get_element_size(meta) * i;
 }
