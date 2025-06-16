@@ -133,6 +133,18 @@ class StructCompiler {
              sn_desc.total_num_cells_from_root);
     TI_TRACE("");
 
+    SNode &snode = *sn;
+      std::cout
+    << " snode->id=" << snode.id
+    << " offset bytes in parent cell=" << snode.offset_bytes_in_parent_cell
+    << " cell size bytes=" << snode.cell_size_bytes
+    << " cells per container " << snode.num_cells_per_container
+    << " physical index position " << snode.physical_index_position
+    << " physical type " << snode.physical_type
+    << " type name " << snode.type_name()
+    << " node_type_name=" << snode.node_type_name
+    << std::endl;
+
     TI_ASSERT(snode_descriptors_.find(sn->id) == snode_descriptors_.end());
     snode_descriptors_[sn->id] = sn_desc;
     return sn_desc.container_stride;

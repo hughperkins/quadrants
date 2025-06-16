@@ -54,6 +54,17 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
     }
   }
 
+    std::cout
+    << " snode->id=" << snode.id
+    << " offset bytes in parent cell=" << snode.offset_bytes_in_parent_cell
+    << " cell size bytes=" << snode.cell_size_bytes
+    << " cells per container " << snode.num_cells_per_container
+    << " physical index position " << snode.physical_index_position
+    << " physical type " << snode.physical_type
+    << " type name " << snode.type_name()
+    << " node_type_name=" << snode.node_type_name
+    << std::endl;
+    
   auto ch_type =
       llvm::StructType::create(*ctx, ch_types, snode.node_type_name + "_ch");
 
