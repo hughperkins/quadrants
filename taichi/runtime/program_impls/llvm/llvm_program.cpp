@@ -71,6 +71,15 @@ void LlvmProgramImpl::compile_snode_tree_types(SNodeTree *tree) {
 
 struct ShapeInfo snode_to_shape_info(SNode *snode) {
   struct ShapeInfo shape_info;
+
+  std::cout << "snode_to_shape_info: snode id = " << snode->id
+            << ", type = " << snode->get_node_type_name()
+            << " num_cells_per_container = " << snode->num_cells_per_container
+            << " chunk_size = " << snode->chunk_size
+            << " cell_size_bytes = " << snode->cell_size_bytes
+            << " offset_bytes_in_parent_cell = " << snode->offset_bytes_in_parent_cell
+            << std::endl;
+
   memset(&shape_info, 0, sizeof(shape_info));
   if(snode->ch.size() == 0) {
     return shape_info;

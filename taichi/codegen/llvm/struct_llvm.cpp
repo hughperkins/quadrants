@@ -49,12 +49,24 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
 
   // create children type that supports forking...
 
+  std::cout
+    << " snode->id=" << snode.id
+    << " offset bytes in parent cell=" << snode.offset_bytes_in_parent_cell
+    << " cell size bytes=" << snode.cell_size_bytes
+    << " cells per contains " << snode.num_cells_per_container
+    << " physical index position " << snode.physical_index_position
+    << " physical type " << snode.physical_type
+    << " type name " << snode.type_name()
+    << " node_type_name=" << snode.node_type_name
+    << std::endl;
+
   std::vector<llvm::Type *> ch_types;
   size_t curr_offset = 0;
   for (int i = 0; i < snode.ch.size(); i++) {
     std::cout << " ch " << i << std::endl;
     auto ch_snode = snode.ch[i].get();
     ch_offset_by_snode_id_[ch_snode->id] = curr_offset;
+    // ch_offset_by_snode_id_[ch_snode->id] = ch_snode->offset_bytes_in_parent_cell;
     if (!snode.ch[i]->is_bit_level) {
       // Bit-level SNodes do not really have a corresponding LLVM type
       auto ch = get_llvm_node_type(module.get(), snode.ch[i].get());
@@ -72,8 +84,22 @@ void StructCompilerLLVM::generate_types(SNode &snode) {
         const llvm::DataLayout &dl = module->getDataLayout();
         std::cout << "elem_ty size in bytes: " << dl.getTypeAllocSize(elem_ty)
                   << "\n";
-
+        std::cout << "curr_offset " << curr_offset << std::endl;
+        std::cout
+          << " ch_snode->id=" << ch_snode->id
+          << " offset bytes in parent cell=" << ch_snode->offset_bytes_in_parent_cell
+          << " cell size bytes=" << ch_snode->cell_size_bytes
+          << " cells per contains " << ch_snode->num_cells_per_container
+          << " physical index position " << ch_snode->physical_index_position
+          << " physical type " << ch_snode->physical_type
+          << " type name " << ch_snode->type_name()
+          << " node_type_name=" << ch_snode->node_type_name
+          << std::endl;
         curr_offset += dl.getTypeAllocSize(elem_ty) * ch->getArrayNumElements();
+        std::cout
+          << "dl.getTypeAllocSize(elem_ty) * ch->getArrayNumElements() " << (dl.getTypeAllocSize(elem_ty) * ch->getArrayNumElements())
+          << " ch_snode->offset_bytes_in_parent_cell=" << ch_snode->offset_bytes_in_parent_cell
+          << std::endl;
       }
       ch->print(llvm::outs());
       llvm::outs() << "\n";
