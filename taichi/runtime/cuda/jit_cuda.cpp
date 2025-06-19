@@ -6,6 +6,11 @@
 #include "taichi/common/core.h"
 #include "taichi/util/lang_util.h"
 
+// LLVM includes for NVPTX backend
+#include "llvm/Support/TargetSelect.h"
+#include "llvm/MC/TargetRegistry.h"
+#include "llvm/Support/Host.h"
+
 namespace taichi::lang {
 
 #if defined(TI_WITH_CUDA)
@@ -371,10 +376,11 @@ std::string JITSessionCUDA::compile_struct_to_ptx(std::unique_ptr<llvm::Module> 
   // Ensure NVPTX backend is initialized
   static std::once_flag init_flag;
   std::call_once(init_flag, []() {
-    LLVMInitializeNVPTXTarget();
-    LLVMInitializeNVPTXTargetMC();
-    LLVMInitializeNVPTXTargetInfo();
-    LLVMInitializeNVPTXAsmPrinter();
+    // Initialize all LLVM targets, including NVPTX
+    llvm::InitializeAllTargetInfos();
+    llvm::InitializeAllTargets();
+    llvm::InitializeAllTargetMCs();
+    llvm::InitializeAllAsmPrinters();
   });
 
   // Add struct-specific attributes and flags

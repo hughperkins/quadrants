@@ -5,6 +5,7 @@ target_sources(cuda_runtime
   PRIVATE
     jit_cuda.cpp
     kernel_launcher.cpp
+    struct_compilation_manager.cpp
   )
 
 target_include_directories(cuda_runtime

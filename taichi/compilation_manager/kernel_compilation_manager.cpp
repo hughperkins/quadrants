@@ -4,6 +4,10 @@
 #include "taichi/codegen/compiled_kernel_data.h"
 #include "taichi/util/offline_cache.h"
 
+#if defined(TI_WITH_CUDA)
+#include "taichi/codegen/llvm/kernel_compiler.h"
+#endif
+
 namespace taichi::lang {
 
 namespace offline_cache {
@@ -299,7 +303,7 @@ std::unique_ptr<CompiledKernelData> KernelCompilationManager::compile_kernel_wit
   
 #if defined(TI_WITH_CUDA)
     // Try to use the struct PTX compilation method if available
-    auto llvm_compiler = dynamic_cast<LLVM::KernelCompiler*>(&compiler);
+    auto llvm_compiler = dynamic_cast<lang::LLVM::KernelCompiler*>(&compiler);
     if (llvm_compiler) {
       auto ckd = llvm_compiler->compile_with_struct_ptx(compile_config, caps, kernel_def, *ir, struct_ptx);
       TI_ASSERT(ckd->check() == CompiledKernelData::Err::kNoError);
