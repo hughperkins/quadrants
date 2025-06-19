@@ -41,6 +41,13 @@ class StructCompilationManager {
   // Get cache statistics
   size_t get_cache_size() const { return struct_cache_.size(); }
 
+  // Field access function creation methods
+  void create_field_access_functions(llvm::Module *module, SNode *root);
+  void create_linearize_function(llvm::Module *module, SNode *root);
+  void create_field_access_function(llvm::Module *module, SNode *root);
+  void create_child_access_functions(llvm::Module *module, SNode *root);
+  void create_function_table(llvm::Module *module, SNode *root);
+
  private:
   std::string make_struct_key(SNode *root) const;
   std::unique_ptr<llvm::Module> create_struct_module(SNode *root);
