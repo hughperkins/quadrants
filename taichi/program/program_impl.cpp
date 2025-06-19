@@ -1,5 +1,9 @@
 #include "program_impl.h"
 
+#if defined(TI_WITH_CUDA)
+#include "taichi/runtime/program_impls/llvm/llvm_program.h"
+#endif
+
 namespace taichi::lang {
 
 ProgramImpl::ProgramImpl(CompileConfig &config_) : config(&config_) {
@@ -41,6 +45,21 @@ const CompiledKernelData &ProgramImpl::compile_kernel(
     const CompileConfig &compile_config,
     const DeviceCapabilityConfig &caps,
     const Kernel &kernel_def) {
+#if defined(TI_WITH_CUDA)
+  if (compile_config.arch == Arch::cuda) {
+    // Try to get struct PTX from the program if available
+    auto llvm_prog = dynamic_cast<LlvmProgramImpl*>(this);
+    if (llvm_prog && llvm_prog->get_struct_compilation_manager()) {
+      // For now, we'll use a placeholder struct PTX
+      // In a full implementation, this would be based on the kernel's dependencies
+      std::string struct_ptx = ""; // TODO: Get actual struct PTX based on kernel dependencies
+      if (!struct_ptx.empty()) {
+        return get_kernel_compilation_manager().load_or_compile_with_struct_ptx(
+            compile_config, caps, kernel_def, struct_ptx);
+      }
+    }
+  }
+#endif
   return get_kernel_compilation_manager().load_or_compile(compile_config, caps,
                                                           kernel_def);
 }

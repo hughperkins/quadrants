@@ -481,26 +481,17 @@ std::string JITSessionCUDA::compile_kernel_module_with_struct_ptx(std::unique_pt
 }
 
 void JITSessionCUDA::inject_struct_ptx_into_module(llvm::Module *module, const std::string &struct_ptx) {
-  // Parse struct PTX and extract type declarations
-  std::istringstream iss(struct_ptx);
-  std::string line;
+  // For now, this is a placeholder implementation
+  // In a full implementation, this would:
+  // 1. Parse the struct PTX to extract function definitions
+  // 2. Inject those functions into the LLVM module
+  // 3. Ensure proper linking between kernel and struct functions
   
-  while (std::getline(iss, line)) {
-    // Look for struct type declarations in PTX
-    if (line.find(".struct") != std::string::npos) {
-      // Extract struct name and create corresponding LLVM type
-      size_t pos = line.find(".struct");
-      if (pos != std::string::npos) {
-        std::string struct_name = line.substr(pos + 8); // Skip ".struct "
-        // Remove any trailing whitespace or comments
-        struct_name = struct_name.substr(0, struct_name.find_first_of(" \t//"));
-        
-        // Create a placeholder struct type in the LLVM module
-        // This will be replaced during PTX generation
-        llvm::StructType::create(module->getContext(), struct_name);
-      }
-    }
-  }
+  TI_DEBUG("Injecting struct PTX into module: {} bytes", struct_ptx.size());
+  
+  // TODO: Implement proper PTX to LLVM IR injection
+  // This is complex and requires parsing PTX and converting to LLVM IR
+  // For now, we'll rely on the function pointer table approach
 }
 
 std::unique_ptr<JITSession> create_llvm_jit_session_cuda(

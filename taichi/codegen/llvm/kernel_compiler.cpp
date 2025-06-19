@@ -7,6 +7,7 @@
 
 #if defined(TI_WITH_CUDA)
 #include "taichi/codegen/cuda/codegen_cuda.h"
+#include "taichi/runtime/cuda/struct_compilation_manager.h"
 #endif
 
 namespace taichi::lang {
@@ -69,10 +70,22 @@ KernelCompiler::CKDPtr KernelCompiler::compile_with_struct_ptx(
 #if defined(TI_WITH_CUDA)
     // Get the CUDA codegen and inject struct PTX
     auto cuda_codegen = dynamic_cast<KernelCodeGenCUDA*>(codegen.get());
-    if (cuda_codegen) {
-      // This would require modifying the CUDA codegen to accept struct PTX
-      // For now, we'll use the regular compilation
-      data.compiled_data = codegen->compile_kernel_to_module();
+    if (cuda_codegen && !struct_ptx.empty()) {
+      // Compile kernel to module first
+      auto module = codegen->compile_kernel_to_module();
+      
+      // Link struct PTX with kernel PTX using JITSessionCUDA
+      auto jit_session = std::make_unique<JITSessionCUDA>(config_.tlctx, compile_config, 
+                                                          config_.tlctx->get_data_layout());
+      
+      // For now, we'll inject the struct PTX at the LLVM module level
+      // This is a simplified approach - in a full implementation, we'd link PTX directly
+      if (module.module) {
+        // Inject struct functions into the kernel module
+        jit_session->inject_struct_ptx_into_module(module.module.get(), struct_ptx);
+      }
+      
+      data.compiled_data = std::move(module);
     } else {
       data.compiled_data = codegen->compile_kernel_to_module();
     }

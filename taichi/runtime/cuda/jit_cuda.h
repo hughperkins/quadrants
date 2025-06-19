@@ -1,3 +1,5 @@
+#pragma once
+
 #include <memory>
 
 #include "llvm/ADT/StringRef.h"
@@ -75,10 +77,12 @@ class JITSessionCUDA : public JITSession {
   std::string compile_kernel_module_with_struct_ptx(std::unique_ptr<llvm::Module> &kernel_module,
                                                     const std::string &struct_ptx);
 
+  // Inject struct PTX functions into an LLVM module
+  void inject_struct_ptx_into_module(llvm::Module *module, const std::string &struct_ptx);
+
  private:
   std::string compile_module_to_ptx(std::unique_ptr<llvm::Module> &module);
   std::string prepare_linking_context(const std::string &ptx);
-  void inject_struct_ptx_into_module(llvm::Module *module, const std::string &struct_ptx);
 };
 
 #endif

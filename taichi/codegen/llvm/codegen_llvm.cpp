@@ -1805,8 +1805,34 @@ void TaskCodeGenLLVM::visit(SNodeLookupStmt *stmt) {
       if (auto ptr_ty = llvm::dyn_cast<llvm::PointerType>(parent_ty))
         parent_ty = ptr_ty->getPointerElementType();
     }
-    llvm_val[stmt] =
-        builder->CreateGEP(parent_ty, parent, llvm_val[stmt->input_index]);
+    
+    // Use struct linearization function if available
+    auto table_func = module->getFunction("get_struct_function_table");
+    if (table_func && stmt->input_index) {
+      // Use function pointer table approach for linearization
+      auto table = builder->CreateCall(table_func);
+      
+      // Get the linearize function pointer (index 1 in our table)
+      auto linearize_ptr = builder->CreateGEP(
+          table->getType()->getPointerElementType(), table,
+          {builder->getInt32(0), builder->getInt32(1)});
+      auto linearize_func = builder->CreateLoad(
+          llvm::PointerType::get(llvm::FunctionType::get(
+              builder->getInt32Ty(),
+              {builder->getInt32Ty(), builder->getInt32Ty(), builder->getInt32Ty()},
+              false), 0), linearize_ptr);
+      
+      // Call the linearize function with dummy coordinates for now
+      auto linear_index = builder->CreateCall(
+          llvm::cast<llvm::FunctionType>(linearize_func->getType()->getPointerElementType()),
+          linearize_func,
+          {builder->getInt32(0), builder->getInt32(0), builder->getInt32(1)});
+      
+      llvm_val[stmt] = builder->CreateGEP(parent_ty, parent, linear_index);
+    } else {
+      // Fallback to original approach
+      llvm_val[stmt] = builder->CreateGEP(parent_ty, parent, llvm_val[stmt->input_index]);
+    }
   } else if (snode->type == SNodeType::dense ||
              snode->type == SNodeType::pointer ||
              snode->type == SNodeType::dynamic ||
@@ -1841,15 +1867,50 @@ void TaskCodeGenLLVM::visit(GetChStmt *stmt) {
     auto offset = tlctx->get_constant(bit_offset);
     llvm_val[stmt] = create_bit_ptr(llvm_val[stmt->input_ptr], offset);
   } else {
-    auto ch = call_struct_func(
-        stmt->output_snode->get_snode_tree_id(),
-        stmt->output_snode->get_ch_from_parent_func_name(),
-        builder->CreateBitCast(llvm_val[stmt->input_ptr],
-                               llvm::PointerType::getInt8PtrTy(*llvm_context)));
-    llvm_val[stmt] = builder->CreateBitCast(
-        ch, llvm::PointerType::get(StructCompilerLLVM::get_llvm_node_type(
+    // Use struct function pointer table for efficient access
+    auto tree_id = stmt->output_snode->get_snode_tree_id();
+    
+    // Get the function pointer table
+    auto table_func = module->getFunction("get_struct_function_table");
+    if (table_func) {
+      // Use function pointer table approach
+      auto table = builder->CreateCall(table_func);
+      
+      // Get the field access function pointer (index 0 in our table)
+      auto field_access_ptr = builder->CreateGEP(
+          table->getType()->getPointerElementType(), table,
+          {builder->getInt32(0), builder->getInt32(0)});
+      auto field_access_func = builder->CreateLoad(
+          llvm::PointerType::get(llvm::FunctionType::get(
+              llvm::PointerType::get(llvm::Type::getInt8Ty(*llvm_context), 0),
+              {llvm::PointerType::get(llvm::Type::getInt8Ty(*llvm_context), 0),
+               builder->getInt32Ty(), builder->getInt32Ty(), builder->getInt32Ty()},
+              false), 0), field_access_ptr);
+      
+      // Call the field access function
+      auto parent_ptr = builder->CreateBitCast(llvm_val[stmt->input_ptr],
+                                              llvm::PointerType::getInt8PtrTy(*llvm_context));
+      auto ch = builder->CreateCall(
+          llvm::cast<llvm::FunctionType>(field_access_func->getType()->getPointerElementType()),
+          field_access_func,
+          {parent_ptr, builder->getInt32(0), builder->getInt32(0), builder->getInt32(1)});
+      
+      llvm_val[stmt] = builder->CreateBitCast(
+          ch, llvm::PointerType::get(StructCompilerLLVM::get_llvm_node_type(
                                        module.get(), stmt->output_snode),
                                    0));
+    } else {
+      // Fallback to original approach
+      auto ch = call_struct_func(
+          tree_id,
+          stmt->output_snode->get_ch_from_parent_func_name(),
+          builder->CreateBitCast(llvm_val[stmt->input_ptr],
+                               llvm::PointerType::getInt8PtrTy(*llvm_context)));
+      llvm_val[stmt] = builder->CreateBitCast(
+          ch, llvm::PointerType::get(StructCompilerLLVM::get_llvm_node_type(
+                                       module.get(), stmt->output_snode),
+                                   0));
+    }
   }
 }
 

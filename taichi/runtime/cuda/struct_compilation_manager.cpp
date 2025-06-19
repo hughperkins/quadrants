@@ -103,90 +103,52 @@ void StructCompilationManager::create_field_access_functions(llvm::Module *modul
   // Create individual functions first
   create_linearize_function(module, root);
   create_field_access_function(module, root);
-  create_child_access_functions(module, root);
+  create_child_access_function(module, root);
   
   // Create function pointer table for efficient access
-  create_function_table(module, root);
+  create_function_pointer_table(module);
 }
 
 void StructCompilationManager::create_linearize_function(llvm::Module *module, SNode *root) {
   auto &ctx = module->getContext();
   
-  // Function signature: int linearize_coords(int* coords, int* strides, int num_dims)
-  auto coord_ptr_type = llvm::PointerType::get(llvm::Type::getInt32Ty(ctx), 0);
-  auto stride_ptr_type = llvm::PointerType::get(llvm::Type::getInt32Ty(ctx), 0);
+  // Function signature: int linearize_2d_coords(int i, int j, int stride)
   auto int32_type = llvm::Type::getInt32Ty(ctx);
   
-  std::vector<llvm::Type*> param_types = {coord_ptr_type, stride_ptr_type, int32_type};
+  std::vector<llvm::Type*> param_types = {int32_type, int32_type, int32_type};
   auto func_type = llvm::FunctionType::get(int32_type, param_types, false);
   
   auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, 
-                                   "linearize_coords", module);
+                                   "linearize_2d_coords", module);
   
   // Create basic block
   auto bb = llvm::BasicBlock::Create(ctx, "entry", func);
   llvm::IRBuilder<> builder(bb);
   
   // Get function parameters
-  auto coords = func->getArg(0);
-  auto strides = func->getArg(1);
-  auto num_dims = func->getArg(2);
+  auto i = func->getArg(0);
+  auto j = func->getArg(1);
+  auto stride = func->getArg(2);
   
-  // Implement linearization: result = sum(coords[i] * strides[i])
-  auto result = builder.CreateAlloca(int32_type);
-  builder.CreateStore(llvm::ConstantInt::get(int32_type, 0), result);
+  // Calculate linear index: i * stride + j
+  auto i_times_stride = builder.CreateMul(i, stride);
+  auto linear_index = builder.CreateAdd(i_times_stride, j);
   
-  // Create loop
-  auto loop_header = llvm::BasicBlock::Create(ctx, "loop_header", func);
-  auto loop_body = llvm::BasicBlock::Create(ctx, "loop_body", func);
-  auto loop_exit = llvm::BasicBlock::Create(ctx, "loop_exit", func);
-  
-  builder.CreateBr(loop_header);
-  builder.SetInsertPoint(loop_header);
-  
-  auto i = builder.CreateAlloca(int32_type);
-  builder.CreateStore(llvm::ConstantInt::get(int32_type, 0), i);
-  
-  auto i_val = builder.CreateLoad(int32_type, i);
-  auto cond = builder.CreateICmpSLT(i_val, num_dims);
-  builder.CreateCondBr(cond, loop_body, loop_exit);
-  
-  builder.SetInsertPoint(loop_body);
-  
-  // Load coords[i] and strides[i]
-  auto coord_gep = builder.CreateGEP(int32_type, coords, i_val);
-  auto stride_gep = builder.CreateGEP(int32_type, strides, i_val);
-  auto coord_val = builder.CreateLoad(int32_type, coord_gep);
-  auto stride_val = builder.CreateLoad(int32_type, stride_gep);
-  
-  // Multiply and add to result
-  auto product = builder.CreateMul(coord_val, stride_val);
-  auto current_result = builder.CreateLoad(int32_type, result);
-  auto new_result = builder.CreateAdd(current_result, product);
-  builder.CreateStore(new_result, result);
-  
-  // Increment i
-  auto new_i = builder.CreateAdd(i_val, llvm::ConstantInt::get(int32_type, 1));
-  builder.CreateStore(new_i, i);
-  builder.CreateBr(loop_header);
-  
-  builder.SetInsertPoint(loop_exit);
-  auto final_result = builder.CreateLoad(int32_type, result);
-  builder.CreateRet(final_result);
+  builder.CreateRet(linear_index);
 }
 
 void StructCompilationManager::create_field_access_function(llvm::Module *module, SNode *root) {
   auto &ctx = module->getContext();
   
-  // Function signature: void* get_field_ptr(void* root, int linear_index)
+  // Function signature: void* get_field_ptr(void* root, int i, int j, int stride)
   auto void_ptr_type = llvm::PointerType::get(llvm::Type::getInt8Ty(ctx), 0);
   auto int32_type = llvm::Type::getInt32Ty(ctx);
   
-  std::vector<llvm::Type*> param_types = {void_ptr_type, int32_type};
+  std::vector<llvm::Type*> param_types = {void_ptr_type, int32_type, int32_type, int32_type};
   auto func_type = llvm::FunctionType::get(void_ptr_type, param_types, false);
   
   auto func = llvm::Function::Create(func_type, llvm::Function::ExternalLinkage, 
-                                   "get_field_ptr", module);
+                                   "get_field_ptr_2d", module);
   
   // Create basic block
   auto bb = llvm::BasicBlock::Create(ctx, "entry", func);
@@ -194,14 +156,25 @@ void StructCompilationManager::create_field_access_function(llvm::Module *module
   
   // Get function parameters
   auto root_ptr = func->getArg(0);
-  // auto linear_index = func->getArg(1);  // Unused for now
+  auto i = func->getArg(1);
+  auto j = func->getArg(2);
+  auto stride = func->getArg(3);
   
-  // For now, just return the root pointer (simplified implementation)
-  // In a full implementation, this would calculate the proper offset based on field layout
-  builder.CreateRet(root_ptr);
+  // Calculate offset: (i * stride + j) * sizeof(int32)
+  auto i_times_stride = builder.CreateMul(i, stride);
+  auto linear_index = builder.CreateAdd(i_times_stride, j);
+  auto offset_bytes = builder.CreateMul(linear_index, llvm::ConstantInt::get(int32_type, 4));
+  
+  // Cast to int64 for pointer arithmetic
+  auto offset_64 = builder.CreateSExt(offset_bytes, llvm::Type::getInt64Ty(ctx));
+  
+  // Calculate final pointer: root_ptr + offset
+  auto final_ptr = builder.CreateGEP(llvm::Type::getInt8Ty(ctx), root_ptr, offset_64);
+  
+  builder.CreateRet(final_ptr);
 }
 
-void StructCompilationManager::create_child_access_functions(llvm::Module *module, SNode *root) {
+void StructCompilationManager::create_child_access_function(llvm::Module *module, SNode *root) {
   auto &ctx = module->getContext();
   
   // Function signature: void* get_child_ptr(void* parent, int child_id)
@@ -227,77 +200,62 @@ void StructCompilationManager::create_child_access_functions(llvm::Module *modul
   builder.CreateRet(parent_ptr);
 }
 
-void StructCompilationManager::create_function_table(llvm::Module *module, SNode *root) {
+void StructCompilationManager::create_function_pointer_table(llvm::Module *module) {
   auto &ctx = module->getContext();
   
-  // Define function pointer types
-  auto linearize_func_type = llvm::FunctionType::get(
-      llvm::Type::getInt32Ty(ctx),
-      {llvm::PointerType::get(llvm::Type::getInt32Ty(ctx), 0),
-       llvm::PointerType::get(llvm::Type::getInt32Ty(ctx), 0),
-       llvm::Type::getInt32Ty(ctx)},
-      false);
-  
-  auto field_access_func_type = llvm::FunctionType::get(
-      llvm::PointerType::get(llvm::Type::getInt8Ty(ctx), 0),
-      {llvm::PointerType::get(llvm::Type::getInt8Ty(ctx), 0),
-       llvm::Type::getInt32Ty(ctx)},
-      false);
-  
-  auto child_access_func_type = llvm::FunctionType::get(
-      llvm::PointerType::get(llvm::Type::getInt8Ty(ctx), 0),
-      {llvm::PointerType::get(llvm::Type::getInt8Ty(ctx), 0),
-       llvm::Type::getInt32Ty(ctx)},
-      false);
-  
   // Create function pointer types
-  auto linearize_func_ptr_type = llvm::PointerType::get(linearize_func_type, 0);
-  auto field_access_func_ptr_type = llvm::PointerType::get(field_access_func_type, 0);
-  auto child_access_func_ptr_type = llvm::PointerType::get(child_access_func_type, 0);
+  auto void_ptr_type = llvm::PointerType::get(llvm::Type::getInt8Ty(ctx), 0);
+  auto int32_type = llvm::Type::getInt32Ty(ctx);
   
-  // Create struct type for the function table
-  std::vector<llvm::Type*> table_elements = {
-      linearize_func_ptr_type,
-      field_access_func_ptr_type,
-      child_access_func_ptr_type
-  };
+  // Function pointer type for get_field_ptr_2d
+  std::vector<llvm::Type*> field_access_params = {void_ptr_type, int32_type, int32_type, int32_type};
+  auto field_access_func_type = llvm::FunctionType::get(void_ptr_type, field_access_params, false);
+  auto field_access_ptr_type = llvm::PointerType::get(field_access_func_type, 0);
   
-  auto table_type = llvm::StructType::create(ctx, table_elements, "FieldAccessTable");
+  // Function pointer type for linearize_2d_coords
+  std::vector<llvm::Type*> linearize_params = {int32_type, int32_type, int32_type};
+  auto linearize_func_type = llvm::FunctionType::get(int32_type, linearize_params, false);
+  auto linearize_ptr_type = llvm::PointerType::get(linearize_func_type, 0);
   
-  // Get function references
-  auto linearize_func = module->getFunction("linearize_coords");
-  auto field_access_func = module->getFunction("get_field_ptr");
-  auto child_access_func = module->getFunction("get_child_ptr");
+  // Create struct for function pointer table
+  std::vector<llvm::Type*> table_members = {field_access_ptr_type, linearize_ptr_type};
+  auto table_type = llvm::StructType::create(ctx, table_members, "StructFunctionTable");
   
-  // Create function pointer constants
-  auto linearize_func_ptr = llvm::ConstantExpr::getBitCast(linearize_func, linearize_func_ptr_type);
-  auto field_access_func_ptr = llvm::ConstantExpr::getBitCast(field_access_func, field_access_func_ptr_type);
-  auto child_access_func_ptr = llvm::ConstantExpr::getBitCast(child_access_func, child_access_func_ptr_type);
+  // Create global constant with function pointers
+  auto field_access_func = module->getFunction("get_field_ptr_2d");
+  auto linearize_func = module->getFunction("linearize_2d_coords");
   
-  // Create the table as a global constant
   std::vector<llvm::Constant*> table_values = {
-      linearize_func_ptr,
-      field_access_func_ptr,
-      child_access_func_ptr
+    llvm::ConstantExpr::getBitCast(field_access_func, field_access_ptr_type),
+    llvm::ConstantExpr::getBitCast(linearize_func, linearize_ptr_type)
   };
   
   auto table_constant = llvm::ConstantStruct::get(table_type, table_values);
-  auto table_global = new llvm::GlobalVariable(
-      *module, table_type, true, llvm::GlobalValue::ExternalLinkage,
-      table_constant, "field_access_table");
+  auto table_global = new llvm::GlobalVariable(*module, table_type, true, 
+                                              llvm::GlobalValue::ExternalLinkage,
+                                              table_constant, "struct_function_table");
   
-  // Create a function to get the table pointer
-  auto get_table_func_type = llvm::FunctionType::get(
-      llvm::PointerType::get(table_type, 0), {}, false);
-  
-  auto get_table_func = llvm::Function::Create(
-      get_table_func_type, llvm::Function::ExternalLinkage,
-      "get_field_access_table", module);
+  // Create function to get the function pointer table
+  auto get_table_func_type = llvm::FunctionType::get(llvm::PointerType::get(table_type, 0), {}, false);
+  auto get_table_func = llvm::Function::Create(get_table_func_type, llvm::Function::ExternalLinkage,
+                                              "get_struct_function_table", module);
   
   auto bb = llvm::BasicBlock::Create(ctx, "entry", get_table_func);
   llvm::IRBuilder<> builder(bb);
-  
   builder.CreateRet(table_global);
+}
+
+std::string StructCompilationManager::get_or_compile_struct_ptx(const CompileConfig &config,
+                                                               const DeviceCapabilityConfig &device_caps) {
+  // For now, return empty string since we need a root SNode to compile
+  // In a full implementation, this would be based on the kernel's dependencies
+  return "";
+}
+
+std::string StructCompilationManager::get_cache_key() const {
+  // For now, return empty string since we need a root SNode to get the key
+  // In a full implementation, this would return the key for the current struct
+  return "";
 }
 
 }  // namespace taichi::lang 

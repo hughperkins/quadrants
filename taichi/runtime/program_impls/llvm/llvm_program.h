@@ -63,6 +63,20 @@ class LlvmProgramImpl : public ProgramImpl {
     return cache_data_->fields.at(snode_tree_id);
   }
 
+  // Compile kernel with pre-compiled struct PTX (for CUDA)
+  const CompiledKernelData &compile_kernel_with_struct_ptx(
+      const CompileConfig &compile_config,
+      const DeviceCapabilityConfig &caps,
+      const Kernel &kernel_def,
+      const std::string &struct_ptx);
+
+#if defined(TI_WITH_CUDA)
+  // Get struct compilation manager
+  StructCompilationManager* get_struct_compilation_manager() {
+    return struct_compilation_manager_.get();
+  }
+#endif
+
  private:
   std::unique_ptr<StructCompiler> compile_snode_tree_types_impl(
       SNodeTree *tree);
@@ -277,13 +291,6 @@ class LlvmProgramImpl : public ProgramImpl {
  protected:
   std::unique_ptr<KernelCompiler> make_kernel_compiler() override;
   std::unique_ptr<KernelLauncher> make_kernel_launcher() override;
-
-  // Compile kernel with pre-compiled struct PTX (for CUDA)
-  const CompiledKernelData &compile_kernel_with_struct_ptx(
-      const CompileConfig &compile_config,
-      const DeviceCapabilityConfig &caps,
-      const Kernel &kernel_def,
-      const std::string &struct_ptx);
 
  private:
   std::size_t num_snode_trees_processed_{0};

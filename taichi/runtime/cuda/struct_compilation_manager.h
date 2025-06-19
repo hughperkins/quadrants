@@ -32,6 +32,10 @@ class StructCompilationManager {
   // Get cached PTX for a struct
   std::string get_cached_struct_ptx(SNode *root);
 
+  // Get or compile struct PTX (for integration with kernel compilation)
+  std::string get_or_compile_struct_ptx(const CompileConfig &config,
+                                        const DeviceCapabilityConfig &device_caps);
+
   // Check if struct is cached
   bool is_struct_cached(SNode *root) const;
 
@@ -41,12 +45,15 @@ class StructCompilationManager {
   // Get cache statistics
   size_t get_cache_size() const { return struct_cache_.size(); }
 
+  // Get cache key for the current struct (for integration)
+  std::string get_cache_key() const;
+
   // Field access function creation methods
   void create_field_access_functions(llvm::Module *module, SNode *root);
   void create_linearize_function(llvm::Module *module, SNode *root);
   void create_field_access_function(llvm::Module *module, SNode *root);
-  void create_child_access_functions(llvm::Module *module, SNode *root);
-  void create_function_table(llvm::Module *module, SNode *root);
+  void create_child_access_function(llvm::Module *module, SNode *root);
+  void create_function_pointer_table(llvm::Module *module);
 
  private:
   std::string make_struct_key(SNode *root) const;
