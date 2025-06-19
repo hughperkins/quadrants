@@ -23,6 +23,13 @@ class KernelCompiler : public lang::KernelCompiler {
                  const Kernel &kernel_def,
                  IRNode &chi_ir) const override;
 
+  // Compile with pre-compiled struct PTX (for CUDA)
+  CKDPtr compile_with_struct_ptx(const CompileConfig &compile_config,
+                                 const DeviceCapabilityConfig &device_caps,
+                                 const Kernel &kernel_def,
+                                 IRNode &chi_ir,
+                                 const std::string &struct_ptx) const;
+
  private:
   Config config_;
 };

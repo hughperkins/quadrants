@@ -13,6 +13,10 @@
 #include "taichi/program/context.h"
 #undef TI_RUNTIME_HOST
 
+#if defined(TI_WITH_CUDA)
+#include "taichi/runtime/cuda/struct_compilation_manager.h"
+#endif
+
 namespace llvm {
 class Module;
 }  // namespace llvm
@@ -274,10 +278,21 @@ class LlvmProgramImpl : public ProgramImpl {
   std::unique_ptr<KernelCompiler> make_kernel_compiler() override;
   std::unique_ptr<KernelLauncher> make_kernel_launcher() override;
 
+  // Compile kernel with pre-compiled struct PTX (for CUDA)
+  const CompiledKernelData &compile_kernel_with_struct_ptx(
+      const CompileConfig &compile_config,
+      const DeviceCapabilityConfig &caps,
+      const Kernel &kernel_def,
+      const std::string &struct_ptx);
+
  private:
   std::size_t num_snode_trees_processed_{0};
   std::unique_ptr<LlvmRuntimeExecutor> runtime_exec_;
   std::unique_ptr<LlvmOfflineCache> cache_data_;
+  
+#if defined(TI_WITH_CUDA)
+  std::unique_ptr<StructCompilationManager> struct_compilation_manager_;
+#endif
 };
 
 LlvmProgramImpl *get_llvm_program(Program *prog);

@@ -167,6 +167,19 @@ class ProgramImpl {
 
   KernelLauncher &get_kernel_launcher();
 
+  // Compile kernel with standard compilation
+  const CompiledKernelData &compile_kernel(
+      const CompileConfig &compile_config,
+      const DeviceCapabilityConfig &caps,
+      const Kernel &kernel_def);
+
+  // Compile kernel with pre-compiled struct PTX (for CUDA)
+  const CompiledKernelData &compile_kernel_with_struct_ptx(
+      const CompileConfig &compile_config,
+      const DeviceCapabilityConfig &caps,
+      const Kernel &kernel_def,
+      const std::string &struct_ptx);
+
   virtual DeviceCapabilityConfig get_device_caps() {
     return {};
   }

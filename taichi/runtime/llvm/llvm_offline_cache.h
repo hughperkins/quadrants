@@ -77,8 +77,11 @@ struct LlvmOfflineCache {
     int root_id{0};
     size_t root_size{0};
     std::vector<SNodeCacheData> snode_metas;
+    
+    // Store compiled struct PTX for separate compilation
+    std::string struct_ptx;
 
-    TI_IO_DEF(tree_id, root_id, root_size, snode_metas);
+    TI_IO_DEF(tree_id, root_id, root_size, snode_metas, struct_ptx);
 
     // TODO(zhanlue): refactor llvm::Modules
     //

@@ -37,4 +37,21 @@ KernelLauncher &ProgramImpl::get_kernel_launcher() {
   return *(kernel_launcher_ = make_kernel_launcher());
 }
 
+const CompiledKernelData &ProgramImpl::compile_kernel(
+    const CompileConfig &compile_config,
+    const DeviceCapabilityConfig &caps,
+    const Kernel &kernel_def) {
+  return get_kernel_compilation_manager().load_or_compile(compile_config, caps,
+                                                          kernel_def);
+}
+
+const CompiledKernelData &ProgramImpl::compile_kernel_with_struct_ptx(
+    const CompileConfig &compile_config,
+    const DeviceCapabilityConfig &caps,
+    const Kernel &kernel_def,
+    const std::string &struct_ptx) {
+  return get_kernel_compilation_manager().load_or_compile_with_struct_ptx(
+      compile_config, caps, kernel_def, struct_ptx);
+}
+
 }  // namespace taichi::lang

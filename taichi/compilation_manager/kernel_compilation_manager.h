@@ -63,6 +63,13 @@ class KernelCompilationManager final {
                                             const DeviceCapabilityConfig &caps,
                                             const Kernel &kernel_def);
 
+  // Load or compile with pre-compiled struct PTX (for CUDA)
+  const CompiledKernelData &load_or_compile_with_struct_ptx(
+      const CompileConfig &compile_config,
+      const DeviceCapabilityConfig &caps,
+      const Kernel &kernel_def,
+      const std::string &struct_ptx);
+
   // Dump the cached data in memory to disk
   void dump();
 
@@ -71,6 +78,22 @@ class KernelCompilationManager final {
                            int max_bytes,
                            double cleaning_factor) const;
 
+  const CompiledKernelData &compile_and_cache_kernel(
+      const std::string &kernel_key,
+      const CompileConfig &compile_config,
+      const DeviceCapabilityConfig &caps,
+      const Kernel &kernel_def);
+
+  const CompiledKernelData &compile_and_cache_kernel_with_struct_ptx(
+      const std::string &kernel_key,
+      const CompileConfig &compile_config,
+      const DeviceCapabilityConfig &caps,
+      const Kernel &kernel_def,
+      const std::string &struct_ptx);
+
+  std::unique_ptr<CompiledKernelData> load_ckd(const std::string &kernel_key,
+                                               Arch arch);
+
  private:
   std::string make_filename(const std::string &kernel_key) const;
 
@@ -78,6 +101,12 @@ class KernelCompilationManager final {
       const CompileConfig &compile_config,
       const DeviceCapabilityConfig &caps,
       const Kernel &kernel_def) const;
+
+  std::unique_ptr<CompiledKernelData> compile_kernel_with_struct_ptx(
+      const CompileConfig &compile_config,
+      const DeviceCapabilityConfig &caps,
+      const Kernel &kernel_def,
+      const std::string &struct_ptx) const;
 
   std::string make_kernel_key(const CompileConfig &compile_config,
                               const DeviceCapabilityConfig &caps,
@@ -88,15 +117,6 @@ class KernelCompilationManager final {
       const std::string &kernel_key,
       Arch arch,
       CacheData::CacheMode cache_mode);
-
-  const CompiledKernelData &compile_and_cache_kernel(
-      const std::string &kernel_key,
-      const CompileConfig &compile_config,
-      const DeviceCapabilityConfig &caps,
-      const Kernel &kernel_def);
-
-  std::unique_ptr<CompiledKernelData> load_ckd(const std::string &kernel_key,
-                                               Arch arch);
 
   static CacheData::CacheMode get_cache_mode(
       const CompileConfig &compile_config,

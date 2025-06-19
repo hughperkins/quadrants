@@ -81,6 +81,20 @@ const CompiledKernelData &KernelCompilationManager::load_or_compile(
                                                   caps, kernel_def);
 }
 
+const CompiledKernelData &KernelCompilationManager::load_or_compile_with_struct_ptx(
+    const CompileConfig &compile_config,
+    const DeviceCapabilityConfig &caps,
+    const Kernel &kernel_def,
+    const std::string &struct_ptx) {
+  auto cache_mode = get_cache_mode(compile_config, kernel_def);
+  const auto kernel_key = make_kernel_key(compile_config, caps, kernel_def) + "_with_struct";
+  auto cached_kernel = try_load_cached_kernel(kernel_def, kernel_key,
+                                              compile_config.arch, cache_mode);
+  return cached_kernel ? *cached_kernel
+                       : compile_and_cache_kernel_with_struct_ptx(kernel_key, compile_config,
+                                                                 caps, kernel_def, struct_ptx);
+}
+
 void KernelCompilationManager::dump() {
   if (caching_kernels_.empty()) {
     return;
@@ -252,6 +266,56 @@ const CompiledKernelData &KernelCompilationManager::compile_and_cache_kernel(
   k.cache_mode = cache_mode;
   const auto &kernel_data = (caching_kernels_[kernel_key] = std::move(k));
   return *kernel_data.compiled_kernel_data;
+}
+
+const CompiledKernelData &KernelCompilationManager::compile_and_cache_kernel_with_struct_ptx(
+    const std::string &kernel_key,
+    const CompileConfig &compile_config,
+    const DeviceCapabilityConfig &caps,
+    const Kernel &kernel_def,
+    const std::string &struct_ptx) {
+  auto cache_mode = get_cache_mode(compile_config, kernel_def);
+  TI_DEBUG_IF(cache_mode == CacheData::MemAndDiskCache,
+              "Cache kernel '{}' with struct PTX (key='{}')", kernel_def.get_name(),
+              kernel_key);
+  TI_ASSERT(caching_kernels_.find(kernel_key) == caching_kernels_.end());
+  KernelCacheData k;
+  k.kernel_key = kernel_key;
+  k.created_at = k.last_used_at = std::time(nullptr);
+  k.compiled_kernel_data = compile_kernel_with_struct_ptx(compile_config, caps, kernel_def, struct_ptx);
+  k.size = 0;  // Populate `size` within the KernelCompilationManager::dump()
+  k.cache_mode = cache_mode;
+  const auto &kernel_data = (caching_kernels_[kernel_key] = std::move(k));
+  return *kernel_data.compiled_kernel_data;
+}
+
+std::unique_ptr<CompiledKernelData> KernelCompilationManager::compile_kernel_with_struct_ptx(
+    const CompileConfig &compile_config,
+    const DeviceCapabilityConfig &caps,
+    const Kernel &kernel_def,
+    const std::string &struct_ptx) const {
+  auto &compiler = *config_.kernel_compiler;
+  auto ir = compiler.compile(compile_config, kernel_def);
+  
+#if defined(TI_WITH_CUDA)
+    // Try to use the struct PTX compilation method if available
+    auto llvm_compiler = dynamic_cast<LLVM::KernelCompiler*>(&compiler);
+    if (llvm_compiler) {
+      auto ckd = llvm_compiler->compile_with_struct_ptx(compile_config, caps, kernel_def, *ir, struct_ptx);
+      TI_ASSERT(ckd->check() == CompiledKernelData::Err::kNoError);
+      return ckd;
+    } else {
+      // Fallback to regular compilation
+      auto ckd = compiler.compile(compile_config, caps, kernel_def, *ir);
+      TI_ASSERT(ckd->check() == CompiledKernelData::Err::kNoError);
+      return ckd;
+    }
+#else
+    // Fallback to regular compilation
+    auto ckd = compiler.compile(compile_config, caps, kernel_def, *ir);
+    TI_ASSERT(ckd->check() == CompiledKernelData::Err::kNoError);
+    return ckd;
+#endif
 }
 
 std::unique_ptr<CompiledKernelData> KernelCompilationManager::load_ckd(

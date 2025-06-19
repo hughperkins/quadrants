@@ -63,8 +63,22 @@ class JITSessionCUDA : public JITSession {
   JITModule *add_module(std::unique_ptr<llvm::Module> M, int max_reg) override;
   llvm::DataLayout get_data_layout() override;
 
+  // New methods for separate compilation and linking
+  std::string compile_struct_to_ptx(std::unique_ptr<llvm::Module> &struct_module);
+  std::string link_ptx_modules(const std::string &struct_ptx, const std::string &kernel_ptx);
+  
+  // Compile kernel with pre-compiled struct PTX
+  std::string compile_kernel_with_struct_ptx(std::unique_ptr<llvm::Module> &kernel_module,
+                                             const std::string &struct_ptx);
+
+  // Compile kernel module with struct PTX integration (LLVM level)
+  std::string compile_kernel_module_with_struct_ptx(std::unique_ptr<llvm::Module> &kernel_module,
+                                                    const std::string &struct_ptx);
+
  private:
   std::string compile_module_to_ptx(std::unique_ptr<llvm::Module> &module);
+  std::string prepare_linking_context(const std::string &ptx);
+  void inject_struct_ptx_into_module(llvm::Module *module, const std::string &struct_ptx);
 };
 
 #endif

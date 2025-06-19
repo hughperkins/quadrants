@@ -17,6 +17,7 @@
 #if defined(TI_WITH_CUDA)
 #include "taichi/codegen/cuda/codegen_cuda.h"
 #include "taichi/runtime/cuda/kernel_launcher.h"
+#include "taichi/runtime/cuda/struct_compilation_manager.h"
 #endif
 
 #if defined(TI_WITH_AMDGPU)
@@ -40,6 +41,13 @@ LlvmProgramImpl::LlvmProgramImpl(CompileConfig &config_,
                           config_.print_ir ? 1 : config_.num_compile_threads) {
   runtime_exec_ = std::make_unique<LlvmRuntimeExecutor>(config_, profiler);
   cache_data_ = std::make_unique<LlvmOfflineCache>();
+  
+#if defined(TI_WITH_CUDA)
+  if (config_.arch == Arch::cuda) {
+    struct_compilation_manager_ = std::make_unique<StructCompilationManager>(
+        runtime_exec_->get_llvm_context(), config_);
+  }
+#endif
 }
 
 std::unique_ptr<StructCompiler> LlvmProgramImpl::compile_snode_tree_types_impl(
@@ -56,12 +64,38 @@ std::unique_ptr<StructCompiler> LlvmProgramImpl::compile_snode_tree_types_impl(
 }
 
 void LlvmProgramImpl::compile_snode_tree_types(SNodeTree *tree) {
-  auto struct_compiler = compile_snode_tree_types_impl(tree);
-  int snode_tree_id = tree->id();
-  int root_id = tree->root()->id;
-
-  // Add compiled result to Cache
-  cache_field(snode_tree_id, root_id, *struct_compiler);
+#if defined(TI_WITH_CUDA)
+  if (config->arch == Arch::cuda && struct_compilation_manager_) {
+    // Use separate struct compilation for CUDA
+    auto *const root = tree->root();
+    std::string struct_ptx = struct_compilation_manager_->compile_struct_to_ptx(root);
+    
+    // Store the PTX in the cache for later use
+    int snode_tree_id = tree->id();
+    int root_id = root->id;
+    
+    // Create a cache entry for the struct PTX
+    LlvmOfflineCache::FieldCacheData field_cache;
+    field_cache.tree_id = snode_tree_id;
+    field_cache.root_id = root_id;
+    field_cache.struct_ptx = struct_ptx;  // Store the PTX
+    
+    // Also compile the traditional way for compatibility
+    auto struct_compiler = compile_snode_tree_types_impl(tree);
+    cache_field(snode_tree_id, root_id, *struct_compiler);
+    
+    TI_DEBUG("Compiled struct to PTX separately, tree_id: {}, ptx_size: {} bytes", 
+             snode_tree_id, struct_ptx.size());
+  } else {
+#endif
+    // Traditional compilation for non-CUDA backends
+    auto struct_compiler = compile_snode_tree_types_impl(tree);
+    int snode_tree_id = tree->id();
+    int root_id = tree->root()->id;
+    cache_field(snode_tree_id, root_id, *struct_compiler);
+#if defined(TI_WITH_CUDA)
+  }
+#endif
 }
 
 void LlvmProgramImpl::materialize_snode_tree(SNodeTree *tree,
@@ -147,6 +181,8 @@ std::unique_ptr<KernelLauncher> LlvmProgramImpl::make_kernel_launcher() {
 
   TI_NOT_IMPLEMENTED;
 }
+
+// Removed compile_kernel method - it's already defined in the base class
 
 LlvmProgramImpl *get_llvm_program(Program *prog) {
   LlvmProgramImpl *llvm_prog =

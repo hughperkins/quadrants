@@ -1,6 +1,10 @@
+#include <sstream>
+#include <mutex>
 #include "taichi/runtime/cuda/jit_cuda.h"
 #include "taichi/runtime/llvm/llvm_context.h"
 #include "taichi/codegen/ir_dump.h"
+#include "taichi/common/core.h"
+#include "taichi/util/lang_util.h"
 
 namespace taichi::lang {
 
@@ -361,6 +365,136 @@ std::string JITSessionCUDA::compile_module_to_ptx(
   // Null-terminate the ptx source
   buffer.push_back(0);
   return buffer;
+}
+
+std::string JITSessionCUDA::compile_struct_to_ptx(std::unique_ptr<llvm::Module> &struct_module) {
+  // Ensure NVPTX backend is initialized
+  static std::once_flag init_flag;
+  std::call_once(init_flag, []() {
+    LLVMInitializeNVPTXTarget();
+    LLVMInitializeNVPTXTargetMC();
+    LLVMInitializeNVPTXTargetInfo();
+    LLVMInitializeNVPTXAsmPrinter();
+  });
+
+  // Add struct-specific attributes and flags
+  struct_module->addModuleFlag(llvm::Module::Override, "nvvm-reflect-ftz", 1);
+  
+  for (llvm::Function &fn : *struct_module) {
+    fn.addFnAttr("denormal-fp-math-f32", "preserve-sign");
+  }
+
+  // Compile the struct module to PTX
+  return compile_module_to_ptx(struct_module);
+}
+
+std::string JITSessionCUDA::prepare_linking_context(const std::string &ptx) {
+  // Extract relevant declarations and definitions
+  std::string result;
+  std::istringstream iss(ptx);
+  std::string line;
+  bool in_declaration = false;
+
+  while (std::getline(iss, line)) {
+    if (line.find(".visible") != std::string::npos || 
+        line.find(".global") != std::string::npos ||
+        line.find(".extern") != std::string::npos) {
+      in_declaration = true;
+      result += line + "\n";
+    } else if (in_declaration && line.find("{") != std::string::npos) {
+      // Skip function body
+      in_declaration = false;
+      while (std::getline(iss, line) && line.find("}") == std::string::npos) {
+        // Skip body content
+      }
+    }
+  }
+  return result;
+}
+
+std::string JITSessionCUDA::link_ptx_modules(const std::string &struct_ptx, const std::string &kernel_ptx) {
+  // Extract PTX version and target from kernel module
+  std::string ptx_version;
+  std::string target;
+  std::istringstream kernel_iss(kernel_ptx);
+  std::string line;
+  while (std::getline(kernel_iss, line)) {
+    if (line.find(".version") != std::string::npos) {
+      ptx_version = line;
+    } else if (line.find(".target") != std::string::npos) {
+      target = line;
+      break;
+    }
+  }
+
+  // Prepare the linked PTX
+  std::string linked_ptx;
+  linked_ptx += ptx_version + "\n";
+  linked_ptx += target + "\n";
+  
+  // Add struct declarations
+  linked_ptx += prepare_linking_context(struct_ptx);
+  
+  // Add the full kernel PTX (excluding version and target)
+  bool skip_header = true;
+  kernel_iss.clear();
+  kernel_iss.seekg(0);
+  while (std::getline(kernel_iss, line)) {
+    if (line.find(".version") != std::string::npos || 
+        line.find(".target") != std::string::npos) {
+      continue;
+    }
+    if (skip_header && line.empty()) {
+      skip_header = false;
+      continue;
+    }
+    if (!skip_header) {
+      linked_ptx += line + "\n";
+    }
+  }
+
+  return linked_ptx;
+}
+
+std::string JITSessionCUDA::compile_kernel_with_struct_ptx(std::unique_ptr<llvm::Module> &kernel_module,
+                                                           const std::string &struct_ptx) {
+  // Compile the kernel module to PTX
+  std::string kernel_ptx = compile_module_to_ptx(kernel_module);
+  
+  // Link the kernel PTX with the pre-compiled struct PTX
+  return link_ptx_modules(struct_ptx, kernel_ptx);
+}
+
+std::string JITSessionCUDA::compile_kernel_module_with_struct_ptx(std::unique_ptr<llvm::Module> &kernel_module,
+                                                                  const std::string &struct_ptx) {
+  // Inject struct PTX declarations into the LLVM module
+  inject_struct_ptx_into_module(kernel_module.get(), struct_ptx);
+  
+  // Compile the integrated module to PTX
+  return compile_module_to_ptx(kernel_module);
+}
+
+void JITSessionCUDA::inject_struct_ptx_into_module(llvm::Module *module, const std::string &struct_ptx) {
+  // Parse struct PTX and extract type declarations
+  std::istringstream iss(struct_ptx);
+  std::string line;
+  
+  while (std::getline(iss, line)) {
+    // Look for struct type declarations in PTX
+    if (line.find(".struct") != std::string::npos) {
+      // Extract struct name and create corresponding LLVM type
+      size_t pos = line.find(".struct");
+      if (pos != std::string::npos) {
+        std::string struct_name = line.substr(pos + 8); // Skip ".struct "
+        // Remove any trailing whitespace or comments
+        struct_name = struct_name.substr(0, struct_name.find_first_of(" \t//"));
+        
+        // Create a placeholder struct type in the LLVM module
+        // This will be replaced during PTX generation
+        llvm::StructType::create(module->getContext(), struct_name);
+      }
+    }
+  }
 }
 
 std::unique_ptr<JITSession> create_llvm_jit_session_cuda(
