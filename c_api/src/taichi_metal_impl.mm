@@ -1,10 +1,5 @@
 #ifdef TI_WITH_METAL
-
 #include "taichi_metal_impl.h"
-
-#include <math.h>
-#include <simd/simd.h>
-
 #include "taichi/rhi/metal/metal_device.h"
 #include "taichi/runtime/gfx/runtime.h"
 

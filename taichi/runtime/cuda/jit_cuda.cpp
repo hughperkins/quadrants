@@ -357,9 +357,9 @@ std::string JITSessionCUDA::compile_module_to_ptx(
   }
 
   std::string buffer(outstr.begin(), outstr.end());
+
   // Null-terminate the ptx source
   buffer.push_back(0);
-
   return buffer;
 }
 
