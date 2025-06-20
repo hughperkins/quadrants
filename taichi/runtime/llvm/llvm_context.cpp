@@ -1030,22 +1030,30 @@ TaichiLLVMContext::ThreadLocalData::~ThreadLocalData() {
   thread_safe_llvm_context.reset();
 }
 
+static int file_idx = 0;
+
 LLVMCompiledKernel TaichiLLVMContext::link_compiled_tasks(
     std::vector<std::unique_ptr<LLVMCompiledTask>> data_list) {
   LLVMCompiledKernel linked;
+  std::cout << "TaichiLLVMContext::link_compiled_tasks: "
+            << data_list.size() << " tasks to link" << std::endl;
   std::unordered_set<int> used_tree_ids;
   std::unordered_set<int> tls_sizes;
   std::unordered_set<std::string> offloaded_names;
   auto mod = new_module("kernel", linking_context_data->llvm_context);
   llvm::Linker linker(*mod);
   for (auto &datum : data_list) {
+    std::cout << "  Linking task: " << datum->module->getName().str() << std::endl;
     for (auto tree_id : datum->used_tree_ids) {
+      std::cout << "    Used tree id: " << tree_id << std::endl;
       used_tree_ids.insert(tree_id);
     }
     for (auto tls_size : datum->struct_for_tls_sizes) {
+      std::cout << "    TLS size: " << tls_size << std::endl;
       tls_sizes.insert(tls_size);
     }
     for (auto &task : datum->tasks) {
+      std::cout << "    Task: " << task.name << std::endl;
       offloaded_names.insert(task.name);
       linked.tasks.push_back(std::move(task));
     }
@@ -1053,6 +1061,8 @@ LLVMCompiledKernel TaichiLLVMContext::link_compiled_tasks(
         datum->module.get(), linking_context_data->llvm_context));
   }
   for (auto tree_id : used_tree_ids) {
+    std::cout << "  Linking struct module for tree id: " << tree_id
+              << std::endl;
     linker.linkInModule(
         llvm::CloneModule(*linking_context_data->struct_modules[tree_id]),
         llvm::Linker::LinkOnlyNeeded | llvm::Linker::OverrideFromSrc);
@@ -1060,15 +1070,27 @@ LLVMCompiledKernel TaichiLLVMContext::link_compiled_tasks(
   auto runtime_module =
       llvm::CloneModule(*linking_context_data->runtime_module);
   for (auto tls_size : tls_sizes) {
+    std::cout << "  Adding struct for function with TLS size: " << tls_size
+              << std::endl;
     add_struct_for_func(runtime_module.get(), tls_size);
   }
   linker.linkInModule(
       std::move(runtime_module),
       llvm::Linker::LinkOnlyNeeded | llvm::Linker::OverrideFromSrc);
+  
+  {
+    std::error_code ec;
+    llvm::raw_fd_ostream os("/tmp/ir/kernel_" + std::to_string(file_idx) + "_linked_llvm.ll", ec, llvm::sys::fs::OF_None);
+    file_idx += 1;
+    mod->print(os, nullptr);
+    os.flush();
+  }
   eliminate_unused_functions(mod.get(), [&](std::string func_name) -> bool {
     return offloaded_names.count(func_name);
   });
+  
   linked.module = std::move(mod);
+  // exit(1);
   return linked;
 }
 
