@@ -1,8 +1,31 @@
 # type: ignore
 
 import math
-
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    img = ax.imshow(np.zeros((height, width)), cmap='hot', vmin=0, vmax=1)
+    
+    def render_wrapper(frame):
+        im_ti = render_fn()
+        image_data = im_ti.to_numpy()
+        img.set_array(image_data)
+        return [img]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.cuda)
 
@@ -92,15 +115,14 @@ def main():
     v[0].y = +0.4
     color[0] = 1
 
-    gui = ti.GUI("Comet", res)
-    while gui.running:
-        gui.running = not gui.get_event(gui.ESCAPE)
+    def animate():
         generate()
         for s in range(steps):
             substep()
         render()
-        gui.set_image(img)
-        gui.show()
+        return img
+
+    run_render_loop(render_fn=animate, width=res, height=res)
 
 
 if __name__ == "__main__":
