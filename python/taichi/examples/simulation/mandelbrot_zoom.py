@@ -2,6 +2,32 @@
 
 import taichi as ti
 from taichi.math import cmul, dot, log2, vec2, vec3
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(10, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    img = ax.imshow(np.zeros((height, width, 3)), vmin=0, vmax=1)
+    t = 0
+    def render_wrapper(frame):
+        nonlocal t
+        im_ti = render_fn(t)
+        image_data = im_ti.to_numpy()
+        img.set_array(image_data)
+        t += 0.03
+        return [img]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.gpu)
 
@@ -46,11 +72,11 @@ def render(time: ti.f32):
 
 
 def main():
-    gui = ti.GUI("Mandelbrot set zoom", res=(width, height))
-    for i in range(100000):
-        render(i * 0.03)
-        gui.set_image(pixels)
-        gui.show()
+    def animate(t: float):
+        render(t)
+        return pixels
+
+    run_render_loop(render_fn=animate, width=width, height=height)
 
 
 if __name__ == "__main__":
