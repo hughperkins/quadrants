@@ -1,10 +1,31 @@
 # type: ignore
 
 import time
-
 import numpy as np
-
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    quiver = ax.quiver([], [], [], [], scale=50, scale_units='inches')
+    
+    def render_wrapper(frame):
+        locations, directions = render_fn()
+        if len(locations) > 0:
+            quiver.set_offsets(locations)
+            quiver.set_UVC(directions[:, 0], directions[:, 1])
+        return [quiver]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
 
 
 def init():
@@ -38,14 +59,17 @@ def paint(t: float):
 
 
 def main():
-    gui = ti.GUI("Vector Field", res=(500, 500))
-
     beginning = time.time_ns()
-    for k in range(1000000):
-        paint((time.time_ns() - beginning) * 0.00000001)
+    
+    def animate():
+        t = (time.time_ns() - beginning) * 0.00000001
+        paint(t)
         dirs_np = dirs.to_numpy()
-        gui.arrows(locations_np, dirs_np, radius=1)
-        gui.show()
+        # Scale coordinates for display
+        scaled_locations = locations_np * 500
+        return scaled_locations, dirs_np
+
+    run_render_loop(render_fn=animate, width=500, height=500)
 
 
 if __name__ == "__main__":

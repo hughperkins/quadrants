@@ -1,6 +1,34 @@
 # type: ignore
 
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    # Draw the ball
+    ball = plt.Circle((ball_pos[0] * width, ball_pos[1] * height), ball_radius * width, color='gray', alpha=0.7)
+    ax.add_patch(ball)
+    
+    scatter = ax.scatter([], [], c='orange', s=4, alpha=0.8)
+    
+    def render_wrapper(frame):
+        positions = render_fn()
+        if len(positions) > 0:
+            scatter.set_offsets(positions)
+        return [scatter]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.gpu)
 
@@ -95,51 +123,21 @@ def init_mesh():
         f2v[k + 1] = [c, d, a]
 
 
-def paint_phi(gui):
-    pos_ = pos.to_numpy()
-    phi_ = phi.to_numpy()
-    f2v_ = f2v.to_numpy()
-    a, b, c = pos_[f2v_[:, 0]], pos_[f2v_[:, 1]], pos_[f2v_[:, 2]]
-    k = phi_ * (10 / E)
-    gb = (1 - k) * 0.5
-    gui.triangles(a, b, c, color=ti.rgb_to_hex([k + gb, gb, gb]))
-
-
 def main():
     init_mesh()
     init_pos()
     gravity[None] = [0, -1]
+    attractor_pos[None] = [0.5, 0.5]
+    attractor_strength[None] = 0.0
 
-    gui = ti.GUI("FEM128")
-    print(
-        "[Hint] Use WSAD/arrow keys to control gravity. Use left/right mouse buttons to attract/repel. Press R to reset."
-    )
-    while gui.running:
-        for e in gui.get_events(gui.PRESS):
-            if e.key == gui.ESCAPE:
-                gui.running = False
-            elif e.key == "r":
-                init_pos()
-            elif e.key in ("a", gui.LEFT):
-                gravity[None] = [-1, 0]
-            elif e.key in ("d", gui.RIGHT):
-                gravity[None] = [+1, 0]
-            elif e.key in ("s", gui.DOWN):
-                gravity[None] = [0, -1]
-            elif e.key in ("w", gui.UP):
-                gravity[None] = [0, +1]
-        mouse_pos = gui.get_cursor_pos()
-        attractor_pos[None] = mouse_pos
-        attractor_strength[None] = gui.is_pressed(gui.LMB) - gui.is_pressed(gui.RMB)
+    def animate():
         for i in range(50):
             with ti.ad.Tape(loss=U):
                 update_U()
             advance()
-        paint_phi(gui)
-        gui.circle(mouse_pos, radius=15, color=0x336699)
-        gui.circle(ball_pos, radius=ball_radius * 512, color=0x666666)
-        gui.circles(pos.to_numpy(), radius=2, color=0xFFAA33)
-        gui.show()
+        return pos.to_numpy() * 512  # Scale to pixel coordinates
+
+    run_render_loop(render_fn=animate, width=512, height=512)
 
 
 if __name__ == "__main__":

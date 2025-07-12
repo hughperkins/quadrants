@@ -1,6 +1,32 @@
 # type: ignore
 
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    ax.set_facecolor('#112F41')
+
+    scatter = ax.scatter([], [], s=3, alpha=0.8)
+    
+    def render_wrapper(frame):
+        positions, colors = render_fn()
+        if len(positions) > 0:
+            scatter.set_offsets(positions)
+            scatter.set_color(colors)
+        return [scatter]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.gpu)  # Try to run on GPU
 quality = 1  # Use a larger value for higher-res simulations
@@ -117,18 +143,18 @@ def initialize():
 
 def main():
     initialize()
-    gui = ti.GUI("Taichi MLS-MPM-99", res=512, background_color=0x112F41)
-    while not gui.get_event(ti.GUI.ESCAPE, ti.GUI.EXIT):
+    
+    # Color palette for different materials
+    palette = ['#068587', '#ED553B', '#EEEEF0']
+    
+    def animate():
         for s in range(int(2e-3 // dt)):
             substep()
-        gui.circles(
-            x.to_numpy(),
-            radius=1.5,
-            palette=[0x068587, 0xED553B, 0xEEEEF0],
-            palette_indices=material,
-        )
-        # Change to gui.show(f'{frame:06d}.png') to write images to disk
-        gui.show()
+        positions = x.to_numpy() * 512  # Scale to pixel coordinates
+        colors = [palette[material.to_numpy()[i]] for i in range(n_particles)]
+        return positions, colors
+
+    run_render_loop(render_fn=animate, width=512, height=512)
 
 
 if __name__ == "__main__":

@@ -5,6 +5,33 @@
 # Some settings of the grids and particles are taken from "Introduction to Computational Plasma Physics"(ISBN: 9787030563675)
 
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    scatter1 = ax.scatter([], [], c='blue', s=4, alpha=0.7)
+    scatter2 = ax.scatter([], [], c='red', s=4, alpha=0.7)
+    
+    def render_wrapper(frame):
+        positions1, positions2 = render_fn()
+        if len(positions1) > 0:
+            scatter1.set_offsets(positions1)
+        if len(positions2) > 0:
+            scatter2.set_offsets(positions2)
+        return [scatter1, scatter2]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.gpu)  # Try to run on GPU
 PI = 3.141592653589793
@@ -86,14 +113,17 @@ def vx_pos():  # to show x-vx on the screen
 
 def main():
     initialize()
-    gui = ti.GUI("Shortest PIC", (800, 800))
-    while not gui.get_event(ti.GUI.ESCAPE, ti.GUI.EXIT):
+    
+    def animate():
         for s in range(substepping):
             substep()
         vx_pos()
-        gui.circles(v_x_pos1.to_numpy(), color=0x0000FF, radius=2)
-        gui.circles(v_x_pos2.to_numpy(), color=0xFF0000, radius=2)
-        gui.show()
+        # Scale to pixel coordinates
+        positions1 = v_x_pos1.to_numpy() * np.array([[800, 800]])
+        positions2 = v_x_pos2.to_numpy() * np.array([[800, 800]])
+        return positions1, positions2
+
+    run_render_loop(render_fn=animate, width=800, height=800)
 
 
 if __name__ == "__main__":

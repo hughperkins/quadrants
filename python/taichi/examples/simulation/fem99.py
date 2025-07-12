@@ -1,6 +1,34 @@
 # type: ignore
 
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    # Draw the ball
+    ball = plt.Circle((ball_pos[0] * width, ball_pos[1] * height), ball_radius * width, color='gray', alpha=0.7)
+    ax.add_patch(ball)
+    
+    scatter = ax.scatter([], [], c='orange', s=4, alpha=0.8)
+    
+    def render_wrapper(frame):
+        positions = render_fn()
+        if len(positions) > 0:
+            scatter.set_offsets(positions)
+        return [scatter]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.gpu)
 
@@ -94,20 +122,15 @@ def init_mesh():
 def main():
     init_mesh()
     init_pos()
-    gui = ti.GUI("FEM99")
-    while gui.running:
-        for e in gui.get_events():
-            if e.key == gui.ESCAPE:
-                gui.running = False
-            elif e.key == "r":
-                init_pos()
+    
+    def animate():
         for i in range(30):
             with ti.ad.Tape(loss=U):
                 update_U()
             advance()
-        gui.circles(pos.to_numpy(), radius=2, color=0xFFAA33)
-        gui.circle(ball_pos, radius=ball_radius * 512, color=0x666666)
-        gui.show()
+        return pos.to_numpy() * 512  # Scale to pixel coordinates
+
+    run_render_loop(render_fn=animate, width=512, height=512)
 
 
 if __name__ == "__main__":

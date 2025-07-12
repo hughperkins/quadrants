@@ -3,8 +3,31 @@
 export_file = ""  # use '/tmp/mpm3d.ply' for exporting result to disk
 
 import numpy as np
-
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    ax.set_facecolor('#112F41')
+
+    scatter = ax.scatter([], [], c='#66CCFF', s=3, alpha=0.8)
+    
+    def render_wrapper(frame):
+        positions = render_fn()
+        if len(positions) > 0:
+            scatter.set_offsets(positions)
+        return [scatter]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.gpu)
 
@@ -107,17 +130,19 @@ def T(a):
 
 def main():
     init()
-    gui = ti.GUI("MPM3D", background_color=0x112F41)
-    while gui.running and not gui.get_event(gui.ESCAPE):
+    
+    def animate():
         for s in range(steps):
             substep()
         pos = F_x.to_numpy()
         if export_file:
             writer = ti.tools.PLYWriter(num_vertices=n_particles)
             writer.add_vertex_pos(pos[:, 0], pos[:, 1], pos[:, 2])
-            writer.export_frame(gui.frame, export_file)
-        gui.circles(T(pos), radius=1.5, color=0x66CCFF)
-        gui.show()
+            writer.export_frame(0, export_file)  # Note: frame number is hardcoded for simplicity
+        transformed_pos = T(pos) * 512  # Scale to pixel coordinates
+        return transformed_pos
+
+    run_render_loop(render_fn=animate, width=512, height=512)
 
 
 if __name__ == "__main__":

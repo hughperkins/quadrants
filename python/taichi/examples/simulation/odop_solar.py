@@ -1,8 +1,35 @@
 # type: ignore
 
 import math
-
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    # Draw the sun
+    sun = plt.Circle((width/2, height/2), 10, color='orange', alpha=0.8)
+    ax.add_patch(sun)
+    
+    scatter = ax.scatter([], [], c='white', s=20, alpha=0.7)
+    
+    def render_wrapper(frame):
+        positions = render_fn()
+        if len(positions) > 0:
+            scatter.set_offsets(positions)
+        return [scatter]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init()
 
@@ -44,29 +71,18 @@ class SolarSystem:
             self.v[i] += self.dt * self.gravity(self.x[i])
             self.x[i] += self.dt * self.v[i]
 
-    @staticmethod
-    def render(gui):  # Render the scene on GUI
-        gui.circle([0.5, 0.5], radius=10, color=0xFFAA88)
-        gui.circles(solar.x.to_numpy(), radius=3, color=0xFFFFFF)
-
 
 def main():
-    global solar
-
     solar = SolarSystem(8, 0.0001)
     solar.center[None] = [0.5, 0.5]
     solar.initialize_particles()
 
-    gui = ti.GUI("Solar System", background_color=0x0071A)
-    while gui.running:
-        if gui.get_event() and gui.is_pressed(gui.SPACE):
-            solar.initialize_particles()  # reinitialize when space bar pressed.
-
+    def animate():
         for _ in range(10):  # Time integration
             solar.integrate()
+        return solar.x.to_numpy() * 800  # Scale to pixel coordinates
 
-        solar.render(gui)
-        gui.show()
+    run_render_loop(render_fn=animate, width=800, height=800)
 
 
 if __name__ == "__main__":

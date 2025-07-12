@@ -5,8 +5,30 @@
 See https://sagejenson.com/physarum for the details."""
 
 import numpy as np
-
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    img = ax.imshow(np.zeros((height, width)), cmap='viridis', vmin=0, vmax=1)
+    
+    def render_wrapper(frame):
+        im_ti = render_fn()
+        image_data = im_ti.to_numpy()
+        img.set_array(image_data)
+        return [img]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.gpu)
 
@@ -71,17 +93,17 @@ def step(phase: ti.i32):
 
 
 def main():
-    print("[Hint] Use slider to change simulation speed.")
-    gui = ti.GUI("Physarum")
     init()
     i = 0
-    step_per_frame = gui.slider("step_per_frame", 1, 100, 1)
-    while gui.running and not gui.get_event(gui.ESCAPE):
-        for _ in range(int(step_per_frame.value)):
+    
+    def animate():
+        nonlocal i
+        for _ in range(10):  # Multiple steps per frame for faster simulation
             step(i % 2)
             i += 1
-        gui.set_image(grid.to_numpy()[0])
-        gui.show()
+        return grid.to_numpy()[0]
+
+    run_render_loop(render_fn=animate, width=GRID_SIZE, height=GRID_SIZE)
 
 
 if __name__ == "__main__":

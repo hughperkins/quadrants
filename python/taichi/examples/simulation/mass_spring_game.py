@@ -5,6 +5,49 @@
 # - https://www.bilibili.com/video/BV1DK411A771
 
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+    ax.set_facecolor('#DDDDDD')
+
+    # For springs (lines)
+    lines = []
+    # For particles (scatter)
+    scatter = ax.scatter([], [], s=50, alpha=0.8)
+    
+    def render_wrapper(frame):
+        positions, connections, fixed_indices = render_fn()
+        
+        # Clear previous lines
+        for line in lines:
+            line.remove()
+        lines.clear()
+        
+        # Draw springs
+        for start, end in connections:
+            line, = ax.plot([start[0], end[0]], [start[1], end[1]], 'k-', linewidth=2, alpha=0.5)
+            lines.append(line)
+        
+        # Draw particles
+        if len(positions) > 0:
+            colors = ['red' if i in fixed_indices else 'black' for i in range(len(positions))]
+            scatter.set_offsets(positions)
+            scatter.set_color(colors)
+        
+        return [scatter] + lines
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.cpu)
 
@@ -99,8 +142,6 @@ def attract(pos_x: ti.f32, pos_y: ti.f32):
 
 
 def main():
-    gui = ti.GUI("Explicit Mass Spring System", res=(512, 512), background_color=0xDDDDDD)
-
     spring_Y[None] = 1000
     drag_damping[None] = 1
     dashpot_damping[None] = 100
@@ -109,77 +150,29 @@ def main():
     new_particle(0.3, 0.4, False)
     new_particle(0.4, 0.4, False)
 
-    while True:
-        for e in gui.get_events(ti.GUI.PRESS):
-            if e.key in [ti.GUI.ESCAPE, ti.GUI.EXIT]:
-                exit()
-            elif e.key == gui.SPACE:
-                paused[None] = not paused[None]
-            elif e.key == ti.GUI.LMB:
-                new_particle(e.pos[0], e.pos[1], int(gui.is_pressed(ti.GUI.SHIFT)))
-            elif e.key == "c":
-                num_particles[None] = 0
-                rest_length.fill(0)
-            elif e.key == "y":
-                if gui.is_pressed("Shift"):
-                    spring_Y[None] /= 1.1
-                else:
-                    spring_Y[None] *= 1.1
-            elif e.key == "d":
-                if gui.is_pressed("Shift"):
-                    drag_damping[None] /= 1.1
-                else:
-                    drag_damping[None] *= 1.1
-            elif e.key == "x":
-                if gui.is_pressed("Shift"):
-                    dashpot_damping[None] /= 1.1
-                else:
-                    dashpot_damping[None] *= 1.1
-
-        if gui.is_pressed(ti.GUI.RMB):
-            cursor_pos = gui.get_cursor_pos()
-            attract(cursor_pos[0], cursor_pos[1])
-
-        if not paused[None]:
-            for step in range(substeps):
-                substep()
+    def animate():
+        for step in range(substeps):
+            substep()
 
         X = x.to_numpy()
         n = num_particles[None]
 
-        # Draw the springs
+        # Get connections for springs
+        connections = []
         for i in range(n):
             for j in range(i + 1, n):
                 if rest_length[i, j] != 0:
-                    gui.line(begin=X[i], end=X[j], radius=2, color=0x444444)
+                    connections.append((X[i] * 512, X[j] * 512))  # Scale to pixel coordinates
 
-        # Draw the particles
-        for i in range(n):
-            c = 0xFF0000 if fixed[i] else 0x111111
-            gui.circle(pos=X[i], color=c, radius=5)
+        # Get fixed particle indices
+        fixed_indices = [i for i in range(n) if fixed[i]]
 
-        gui.text(
-            content="Left click: add mass point (with shift to fix); Right click: attract",
-            pos=(0, 0.99),
-            color=0x0,
-        )
-        gui.text(content="C: clear all; Space: pause", pos=(0, 0.95), color=0x0)
-        gui.text(
-            content=f"Y: Spring Young's modulus {spring_Y[None]:.1f}",
-            pos=(0, 0.9),
-            color=0x0,
-        )
-        gui.text(
-            content=f"D: Drag damping {drag_damping[None]:.2f}",
-            pos=(0, 0.85),
-            color=0x0,
-        )
-        gui.text(
-            content=f"X: Dashpot damping {dashpot_damping[None]:.2f}",
-            pos=(0, 0.8),
-            color=0x0,
-        )
-        gui.show()
+        # Scale positions to pixel coordinates
+        positions = X[:n] * 512
+
+        return positions, connections, fixed_indices
+
+    run_render_loop(render_fn=animate, width=512, height=512)
 
 
 if __name__ == "__main__":

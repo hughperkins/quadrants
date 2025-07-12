@@ -4,6 +4,30 @@
 # https://en.wikipedia.org/wiki/Shallow_water_equations#Non-conservative_form
 
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    img = ax.imshow(np.zeros((height, width)), cmap='viridis', vmin=0, vmax=1)
+    
+    def render_wrapper(frame):
+        im_ti = render_fn()
+        image_data = im_ti.to_numpy()
+        img.set_array(image_data)
+        return [img]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.gpu)
 
@@ -77,23 +101,18 @@ def visualize_wave():
 
 
 def main():
-    print("[Hint] click on the window to create waves")
-
     reset()
-    gui = ti.GUI("Water Wave", shape)
-    while gui.running:
-        for e in gui.get_events(ti.GUI.PRESS):
-            if e.key in [ti.GUI.ESCAPE, ti.GUI.EXIT]:
-                gui.running = False
-            elif e.key == "r":
-                reset()
-            elif e.key == ti.GUI.LMB:
-                x, y = e.pos
-                create_wave(3, x * shape[0], y * shape[1])
+    
+    # Create some initial waves
+    create_wave(3, shape[0] * 0.3, shape[1] * 0.3)
+    create_wave(2, shape[0] * 0.7, shape[1] * 0.7)
+    
+    def animate():
         update()
         visualize_wave()
-        gui.set_image(pixels)
-        gui.show()
+        return pixels
+
+    run_render_loop(render_fn=animate, width=shape[0], height=shape[1])
 
 
 if __name__ == "__main__":

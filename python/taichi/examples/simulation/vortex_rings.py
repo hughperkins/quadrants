@@ -2,10 +2,31 @@
 
 # C++ reference and tutorial (Chinese): https://zhuanlan.zhihu.com/p/26882619
 import math
-
 import numpy as np
-
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    scatter = ax.scatter([], [], c='black', s=0.5, alpha=0.7)
+    
+    def render_wrapper(frame):
+        positions = render_fn()
+        if len(positions) > 0:
+            scatter.set_offsets(positions)
+        return [scatter]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.gpu)
 
@@ -79,20 +100,17 @@ def init_tracers():
 
 def main():
     init_tracers()
-    gui = ti.GUI("Vortex Rings", (1024, 512), background_color=0xFFFFFF)
-
-    while gui.running:
+    
+    def animate():
         for i in range(4):  # substeps
             advect()
             integrate_vortex()
+        
+        # Transform coordinates for display
+        positions = tracer.to_numpy() * np.array([[0.05, 0.1]]) + np.array([[0.0, 0.5]])
+        return positions * np.array([[1024, 512]])  # Scale to pixel coordinates
 
-        gui.circles(
-            tracer.to_numpy() * np.array([[0.05, 0.1]]) + np.array([[0.0, 0.5]]),
-            radius=0.5,
-            color=0x0,
-        )
-
-        gui.show()
+    run_render_loop(render_fn=animate, width=1024, height=512)
 
 
 if __name__ == "__main__":

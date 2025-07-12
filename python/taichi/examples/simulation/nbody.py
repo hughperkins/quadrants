@@ -2,8 +2,31 @@
 
 # Authored by Tiantian Liu, Taichi Graphics.
 import math
-
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    scatter = ax.scatter([], [], c='white', s=planet_radius**2, alpha=0.7)
+    
+    def render_wrapper(frame):
+        positions = render_fn()
+        if len(positions) > 0:
+            scatter.set_offsets(positions)
+        return [scatter]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init(arch=ti.cpu)
 
@@ -82,25 +105,15 @@ def update():
 
 
 def main():
-    gui = ti.GUI("N-body problem", (800, 800))
-
     initialize()
-    while gui.running:
-        for e in gui.get_events(ti.GUI.PRESS):
-            if e.key in [ti.GUI.ESCAPE, ti.GUI.EXIT]:
-                exit()
-            elif e.key == "r":
-                initialize()
-            elif e.key == ti.GUI.SPACE:
-                paused[None] = not paused[None]
+    
+    def animate():
+        for i in range(substepping):
+            compute_force()
+            update()
+        return pos.to_numpy() * 800  # Scale to pixel coordinates
 
-        if not paused[None]:
-            for i in range(substepping):
-                compute_force()
-                update()
-
-        gui.circles(pos.to_numpy(), color=0xFFFFFF, radius=planet_radius)
-        gui.show()
+    run_render_loop(render_fn=animate, width=800, height=800)
 
 
 if __name__ == "__main__":
