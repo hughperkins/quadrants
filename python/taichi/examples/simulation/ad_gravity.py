@@ -1,32 +1,30 @@
 # type: ignore
 
-def render_loop():
-    import matplotlib.pyplot as plt
-
-    fig, ax = plt.subplots()
-    sc = ax.scatter([], [], s=50)
-    ax.set_xlim(0, 1)
-    ax.set_ylim(0, 1)
-    ax.set_aspect('equal')
-    plt.title("Autodiff gravity")
-
-    def update():
-        for _ in range(50):
-            substep()
-        pos = x.to_numpy()
-        sc.set_offsets(pos)
-        plt.draw()
-        plt.pause(0.01)
-
-    # Initial draw
-    sc.set_offsets(x.to_numpy())
-    plt.draw()
-    plt.pause(0.01)
-
-    while plt.fignum_exists(fig.number):
-        update()
-
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import numpy as np
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    scatter = ax.scatter([], [], s=50, c='red', alpha=0.7)
+    
+    def render_wrapper(frame):
+        positions = render_fn()
+        if len(positions) > 0:
+            scatter.set_offsets(positions)
+        return [scatter]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=50, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init()
 
@@ -71,9 +69,14 @@ def init():
 
 def main():
     init()
-    render_loop()
+    
+    def animate():
+        for _ in range(50):
+            substep()
+        return x.to_numpy() * 800  # Scale to pixel coordinates
+
+    run_render_loop(render_fn=animate, width=800, height=800)
 
 
 if __name__ == "__main__":
-    main()
     main()
