@@ -1,5 +1,31 @@
 # type: ignore
 
+def render_loop():
+    import matplotlib.pyplot as plt
+
+    fig, ax = plt.subplots()
+    sc = ax.scatter([], [], s=50)
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.set_aspect('equal')
+    plt.title("Autodiff gravity")
+
+    def update():
+        for _ in range(50):
+            substep()
+        pos = x.to_numpy()
+        sc.set_offsets(pos)
+        plt.draw()
+        plt.pause(0.01)
+
+    # Initial draw
+    sc.set_offsets(x.to_numpy())
+    plt.draw()
+    plt.pause(0.01)
+
+    while plt.fignum_exists(fig.number):
+        update()
+
 import taichi as ti
 
 ti.init()
@@ -45,13 +71,9 @@ def init():
 
 def main():
     init()
-    gui = ti.GUI("Autodiff gravity")
-    while gui.running:
-        for i in range(50):
-            substep()
-        gui.circles(x.to_numpy(), radius=3)
-        gui.show()
+    render_loop()
 
 
 if __name__ == "__main__":
+    main()
     main()
