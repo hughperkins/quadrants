@@ -4,8 +4,30 @@
 # In memory of John Horton Conway (1937 - 2020)
 
 import numpy as np
-
 import taichi as ti
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+
+
+def run_render_loop(render_fn, width: int, height: int) -> None:
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ax.set_xlim(0, width)
+    ax.set_ylim(0, height)
+    ax.set_aspect('equal')
+    ax.axis('off')
+
+    img = ax.imshow(np.zeros((height, width)), cmap='gray', vmin=0, vmax=1)
+    
+    def render_wrapper(frame):
+        im_ti = render_fn()
+        image_data = im_ti.to_numpy()
+        img.set_array(image_data)
+        return [img]
+
+    ani = animation.FuncAnimation(fig, render_wrapper, interval=100, blit=True, cache_frame_data=False)
+    plt.tight_layout()
+    plt.show()
+
 
 ti.init()
 
@@ -73,34 +95,13 @@ def init():
 
 
 def main():
-    gui = ti.GUI("Game of Life", (img_size, img_size))
-    gui.fps_limit = 15
-
-    print("[Hint] Press `r` to reset")
-    print("[Hint] Press SPACE to pause")
-    print("[Hint] Click LMB, RMB and drag to add alive / dead cells")
-
     init()
-    paused = False
-    while gui.running:
-        for e in gui.get_events(gui.PRESS, gui.MOTION):
-            if e.key == gui.ESCAPE:
-                gui.running = False
-            elif e.key == gui.SPACE:
-                paused = not paused
-            elif e.key == "r":
-                alive.fill(0)
+    
+    def animate():
+        run()
+        return alive
 
-        if gui.is_pressed(gui.LMB, gui.RMB):
-            mx, my = gui.get_cursor_pos()
-            alive[int(mx * n), int(my * n)] = gui.is_pressed(gui.LMB)
-            paused = True
-
-        if not paused:
-            run()
-
-        gui.set_image(ti.tools.imresize(alive, img_size).astype(np.uint8) * 255)
-        gui.show()
+    run_render_loop(render_fn=animate, width=n, height=n)
 
 
 if __name__ == "__main__":
