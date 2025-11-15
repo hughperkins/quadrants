@@ -119,7 +119,10 @@ CodeGenStmtGuard make_while_after_loop_guard(TaskCodeGenLLVM *cg) {
 
 // TaskCodeGenLLVM
 void TaskCodeGenLLVM::visit(Block *stmt_list) {
+  std::cout << "TaskCodeGenLLVM::visit(Block *stmt_list)" << std::endl;
+  irpass::print(stmt_list);
   for (auto &stmt : stmt_list->statements) {
+    std::cout << "stmt->name " << stmt->name() << std::endl;
     stmt->accept(this);
     if (returned) {
       break;
@@ -1788,18 +1791,40 @@ std::tuple<llvm::Value *, llvm::Value *> TaskCodeGenLLVM::load_bit_ptr(
 }
 
 void TaskCodeGenLLVM::visit(SNodeLookupStmt *stmt) {
+  std::cout << "SNodeLookupStmt" << std::endl;
   llvm::Value *parent = nullptr;
   parent = llvm_val[stmt->input_snode];
   TI_ASSERT(parent);
   auto snode = stmt->snode;
   if (snode->type == SNodeType::root) {
     // FIXME: get parent_type from gstaichi instead of llvm.
+// <<<<<<< HEAD
+    // std::cout << "input snode " << std::endl;
+    // irpass::print(stmt->input_snode);
     llvm::Type *parent_ty = builder->getInt8Ty();
     if (auto bit_cast = llvm::dyn_cast<llvm::BitCastInst>(parent)) {
       parent_ty = bit_cast->getDestTy();
-      if (auto ptr_ty = llvm::dyn_cast<llvm::PointerType>(parent_ty))
+      if (auto ptr_ty = llvm::dyn_cast<llvm::PointerType>(parent_ty)) {
+        std::cout << "parent is pointer type" << std::endl;
         parent_ty = ptr_ty->getPointerElementType();
+      }
     }
+    // std::cout << "parent_ty " << std::endl;
+    // irpass::print(parent_ty);
+// =======
+//     // llvm::Type *parent_ty = builder->getInt8Ty();
+//     // if (auto bit_cast = llvm::dyn_cast<llvm::BitCastInst>(parent)) {
+//     //   parent_ty = bit_cast->getDestTy();
+//     //   if (auto ptr_ty = llvm::dyn_cast<llvm::PointerType>(parent_ty))
+//     //     parent_ty = ptr_ty->getPointerElementType();
+//     // }
+//     std::cout << "input snode " << std::endl;
+//     irpass::print(stmt->input_snode);
+//     std::cout << "about to call as " << std::endl;
+//     llvm::Type *parent_ty = StructCompilerLLVM::get_llvm_node_type(
+//         module.get(), stmt->input_snode->as<SNode>());
+//     std::cout << "after call as " << std::endl;
+// >>>>>>> fb0ebec6c (various instreumentation)
     llvm_val[stmt] =
         builder->CreateGEP(parent_ty, parent, llvm_val[stmt->input_index]);
   } else if (snode->type == SNodeType::dense ||
@@ -2708,6 +2733,7 @@ void TaskCodeGenLLVM::emit_to_module() {
 }
 
 LLVMCompiledTask TaskCodeGenLLVM::run_compilation() {
+  std::cout << "TaskCodeGenLLVM::run_compilation" << std::endl;
   // Final lowering
   auto offload_to_executable = [](IRNode *ir, const CompileConfig &config,
                                   const Kernel *kernel) {
@@ -2726,9 +2752,12 @@ LLVMCompiledTask TaskCodeGenLLVM::run_compilation() {
             config.make_block_local);
   };
 
+  std::cout << "offload to executable" << std::endl;
   offload_to_executable(ir, compile_config, kernel);
 
+  std::cout << "emit to module" << std::endl;
   emit_to_module();
+  std::cout << "elinate unused functions" << std::endl;
   eliminate_unused_functions();
 
   if (compile_config.arch == Arch::cuda) {
@@ -2769,6 +2798,7 @@ LLVMCompiledTask TaskCodeGenLLVM::run_compilation() {
     }
   }
 
+  std::cout << "end of run_compilation()" << std::endl;
   return {std::move(offloaded_tasks), std::move(module),
           std::move(used_tree_ids), std::move(struct_for_tls_sizes)};
 }
