@@ -74,9 +74,9 @@ def dlpack_to_torch(obj):
     try:
         return obj._qd_dlpack_tc
     except AttributeError:
-        import torch  # pylint: disable=C0415
+        from torch.utils.dlpack import from_dlpack  # pylint: disable=C0415
 
-        tc = torch.from_dlpack(obj.to_dlpack())
+        tc = from_dlpack(obj.to_dlpack())
         obj._qd_dlpack_tc = tc
         if impl.current_cfg().arch == _ARCH_METAL:
             impl.get_runtime().sync()

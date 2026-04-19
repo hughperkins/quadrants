@@ -270,7 +270,8 @@ class ScalarField(Field):
                 if dtype is not None and np_arr.dtype != dtype:
                     if copy is False:
                         raise ValueError("copy=False is incompatible with dtype conversion")
-                    return np_arr.astype(dtype)
+                    np_dtype = to_numpy_type(dtype) if isinstance(dtype, _qd_core.DataTypeCxx) else dtype
+                    return np_arr.astype(np_dtype)
                 return np_arr
             if copy is False:
                 raise ValueError("Zero-copy to numpy requires a CPU backend")
