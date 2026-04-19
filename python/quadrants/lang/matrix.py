@@ -1323,21 +1323,27 @@ class MatrixField(Field):
         )
 
         if copy is not True and can_zerocopy(is_field=True, dtype=self.dtype, shape=self.shape):
-            tc = dlpack_to_torch(self)
-            if tc.device.type == "cpu":
-                as_vector = self.m == 1 and not keep_dims
-                shape_ext = (self.n,) if as_vector else (self.n, self.m)
-                expected = self.shape + shape_ext
-                np_arr = tc.numpy()
-                if np_arr.shape != expected:
-                    np_arr = np_arr.reshape(expected)
-                if dtype is not None and np_arr.dtype != dtype:
-                    if copy is False:
-                        raise ValueError("copy=False is incompatible with dtype conversion")
-                    return np_arr.astype(dtype)
-                return np_arr
-            if copy is False:
-                raise ValueError("Zero-copy to numpy requires a CPU backend")
+            try:
+                tc = dlpack_to_torch(self)
+            except ImportError:
+                if copy is False:
+                    raise ValueError("Zero-copy to numpy requires torch to be installed")
+                tc = None
+            if tc is not None:
+                if tc.device.type == "cpu":
+                    as_vector = self.m == 1 and not keep_dims
+                    shape_ext = (self.n,) if as_vector else (self.n, self.m)
+                    expected = self.shape + shape_ext
+                    np_arr = tc.numpy()
+                    if np_arr.shape != expected:
+                        np_arr = np_arr.reshape(expected)
+                    if dtype is not None and np_arr.dtype != dtype:
+                        if copy is False:
+                            raise ValueError("copy=False is incompatible with dtype conversion")
+                        return np_arr.astype(dtype)
+                    return np_arr
+                if copy is False:
+                    raise ValueError("Zero-copy to numpy requires a CPU backend")
         elif copy is False:
             raise ValueError("Zero-copy not available for this backend/type combination")
 

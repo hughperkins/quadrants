@@ -264,17 +264,23 @@ class ScalarField(Field):
         )
 
         if copy is not True and can_zerocopy(is_field=True, dtype=self.dtype, is_scalar_field=True, shape=self.shape):
-            tc = dlpack_to_torch(self)
-            if tc.device.type == "cpu":
-                np_arr = tc.numpy()
-                if dtype is not None and np_arr.dtype != dtype:
-                    if copy is False:
-                        raise ValueError("copy=False is incompatible with dtype conversion")
-                    np_dtype = to_numpy_type(dtype) if isinstance(dtype, _qd_core.DataTypeCxx) else dtype
-                    return np_arr.astype(np_dtype)
-                return np_arr
-            if copy is False:
-                raise ValueError("Zero-copy to numpy requires a CPU backend")
+            try:
+                tc = dlpack_to_torch(self)
+            except ImportError:
+                if copy is False:
+                    raise ValueError("Zero-copy to numpy requires torch to be installed")
+                tc = None
+            if tc is not None:
+                if tc.device.type == "cpu":
+                    np_arr = tc.numpy()
+                    if dtype is not None and np_arr.dtype != dtype:
+                        if copy is False:
+                            raise ValueError("copy=False is incompatible with dtype conversion")
+                        np_dtype = to_numpy_type(dtype) if isinstance(dtype, _qd_core.DataTypeCxx) else dtype
+                        return np_arr.astype(np_dtype)
+                    return np_arr
+                if copy is False:
+                    raise ValueError("Zero-copy to numpy requires a CPU backend")
         elif copy is False:
             raise ValueError("Zero-copy not available for this backend/type combination")
 
