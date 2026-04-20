@@ -22,7 +22,7 @@ def is_v520_amdgpu():
 
 def _to_cpu(t):
     """Move tensor to CPU for value comparison on arches where torch accessors may not work."""
-    if is_v520_amdgpu():
+    if is_v520_amdgpu() or t.device.type != "cpu":
         return t.cpu()
     return t
 

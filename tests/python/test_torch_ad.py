@@ -48,7 +48,7 @@ def test_torch_ad():
         def forward(ctx, inp):
             x.from_torch(inp)
             torch_kernel()
-            outp = y.to_torch()
+            outp = y.to_torch().to(inp.device)
             return outp
 
         @staticmethod
@@ -56,7 +56,7 @@ def test_torch_ad():
             qd.ad.clear_all_gradients()
             y.grad.from_torch(outp_grad)
             torch_kernel.grad()
-            inp_grad = x.grad.to_torch()
+            inp_grad = x.grad.to_torch().to(outp_grad.device)
             return inp_grad
 
     sqr = Sqr.apply
