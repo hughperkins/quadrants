@@ -175,7 +175,7 @@ def test_io_zeros():
 
     assert mat[None][1, 2] == 4
 
-    zeros = mat.to_torch()
+    zeros = mat.to_torch().cpu()
     assert zeros[1, 2] == 4
 
 
@@ -230,7 +230,7 @@ def test_device():
 def test_shape_matrix():
     n = 12
     x = qd.Matrix.field(3, 2, qd.f32, shape=(n, n))
-    X = x.to_torch()
+    X = x.to_torch().cpu()
     for i in range(n):
         for j in range(n):
             for k in range(3):
@@ -238,9 +238,9 @@ def test_shape_matrix():
                     X[i, j, k, l] = i * 10 + j + k * 100 + l * 1000
 
     x.from_torch(X)
-    X1 = x.to_torch()
+    X1 = x.to_torch().cpu()
     x.from_torch(X1)
-    X1 = x.to_torch()
+    X1 = x.to_torch().cpu()
 
     assert (X == X1).all()
 
@@ -250,16 +250,16 @@ def test_shape_matrix():
 def test_shape_vector():
     n = 12
     x = qd.Vector.field(3, qd.f32, shape=(n, n))
-    X = x.to_torch()
+    X = x.to_torch().cpu()
     for i in range(n):
         for j in range(n):
             for k in range(3):
                 X[i, j, k] = i * 10 + j + k * 100
 
     x.from_torch(X)
-    X1 = x.to_torch()
+    X1 = x.to_torch().cpu()
     x.from_torch(X1)
-    X1 = x.to_torch()
+    X1 = x.to_torch().cpu()
 
     assert (X == X1).all()
 
