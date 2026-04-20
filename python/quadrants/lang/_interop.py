@@ -15,10 +15,16 @@ from quadrants.types import primitive_types
 
 _ARCH_METAL = _qd_core.Arch.metal
 _ARCH_VULKAN = _qd_core.Arch.vulkan
+_ARCH_CPU = frozenset({_qd_core.Arch.x64, _qd_core.Arch.arm64})
 
 _DLPACK_SUPPORTED_DTYPES = frozenset(
     {primitive_types.i32, primitive_types.i64, primitive_types.f32, primitive_types.f64, primitive_types.u1}
 )
+
+
+def current_arch_is_cpu() -> bool:
+    """``True`` when the active Quadrants backend is a CPU backend (x64 or arm64)."""
+    return impl.current_cfg().arch in _ARCH_CPU
 
 
 @functools.lru_cache(maxsize=1)

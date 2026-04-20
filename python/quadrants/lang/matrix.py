@@ -1319,18 +1319,20 @@ class MatrixField(Field):
         """
         from quadrants.lang._interop import (  # pylint: disable=C0415
             can_zerocopy,
+            current_arch_is_cpu,
             dlpack_to_torch,
         )
 
         if copy is not True and can_zerocopy(is_field=True, dtype=self.dtype, shape=self.shape):
-            try:
-                tc = dlpack_to_torch(self)
-            except ImportError:
-                if copy is False:
-                    raise ValueError("Zero-copy to numpy requires torch to be installed")
-                tc = None
-            if tc is not None:
-                if tc.device.type == "cpu":
+            # See ``ScalarField.to_numpy`` for why DLPack is restricted to CPU backends.
+            if current_arch_is_cpu():
+                try:
+                    tc = dlpack_to_torch(self)
+                except ImportError:
+                    if copy is False:
+                        raise ValueError("Zero-copy to numpy requires torch to be installed")
+                    tc = None
+                if tc is not None:
                     as_vector = self.m == 1 and not keep_dims
                     shape_ext = (self.n,) if as_vector else (self.n, self.m)
                     expected = self.shape + shape_ext
@@ -1342,8 +1344,8 @@ class MatrixField(Field):
                             raise ValueError("copy=False is incompatible with dtype conversion")
                         return np_arr.astype(dtype)
                     return np_arr
-                if copy is False:
-                    raise ValueError("Zero-copy to numpy requires a CPU backend")
+            if copy is False:
+                raise ValueError("Zero-copy to numpy requires a CPU backend")
         elif copy is False:
             raise ValueError("Zero-copy not available for this backend/type combination")
 
