@@ -69,18 +69,19 @@ def dlpack_to_torch(obj):
     On the first call the DLPack capsule is created and wrapped into a ``torch.Tensor`` which is then stored on the
     source object as ``_qd_dlpack_tc``.  Subsequent calls return the cached tensor directly (O(1)).
 
-    On Apple Metal an explicit ``sync()`` is performed after the initial export to ensure data visibility.
+    On Apple Metal an explicit ``sync()`` is performed on every call so that any pending Quadrants kernels writing
+    to the underlying memory are visible to the returned MPS tensor.
     """
     try:
-        return obj._qd_dlpack_tc
+        tc = obj._qd_dlpack_tc
     except AttributeError:
         from torch.utils.dlpack import from_dlpack  # pylint: disable=C0415
 
         tc = from_dlpack(obj.to_dlpack())
         obj._qd_dlpack_tc = tc
-        if impl.current_cfg().arch == _ARCH_METAL:
-            impl.get_runtime().sync()
-        return tc
+    if impl.current_cfg().arch == _ARCH_METAL:
+        impl.get_runtime().sync()
+    return tc
 
 
 def invalidate_zerocopy_cache(obj) -> None:
