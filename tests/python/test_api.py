@@ -367,8 +367,9 @@ user_api[qd.MatrixNdarray] = [
     "get_type",
     "to_dlpack",
     "to_numpy",
+    "to_torch",
 ]
-user_api[qd.Ndarray] = ["copy_from", "element_shape", "fill", "get_type", "to_dlpack"]
+user_api[qd.Ndarray] = ["copy_from", "element_shape", "fill", "get_type", "to_dlpack", "to_torch"]
 user_api[qd.SNode] = [
     "bitmasked",
     "deactivate_all",
@@ -403,6 +404,7 @@ user_api[qd.ScalarNdarray] = [
     "get_type",
     "to_dlpack",
     "to_numpy",
+    "to_torch",
 ]
 user_api[qd.Struct] = ["entries", "field", "items", "keys", "methods", "to_dict"]
 user_api[qd.StructField] = [
@@ -427,6 +429,7 @@ user_api[qd.VectorNdarray] = [
     "get_type",
     "to_dlpack",
     "to_numpy",
+    "to_torch",
 ]
 user_api[qd.sparse] = ["grid", "usage"]
 
