@@ -1312,42 +1312,38 @@ class MatrixField(Field):
                 When keep_dims=False, the resulting numpy array should skip the matrix dims with size 1.
                 For example, a 4x1 or 1x4 matrix field with 5x6x7 elements results in an array of shape 5x6x7x4.
             dtype (DataType, optional): The desired data type of returned numpy array.
-            copy: ``None`` (default) prefers zero-copy, ``True`` forces a copy, ``False`` requires zero-copy or raises.
+            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` requires zero-copy via DLPack
+                (CPU backend + torch installed) or raises.  Note: zero-copy numpy arrays alias the field's underlying
+                C++ runtime memory and become invalid after ``qd.reset()`` -- callers opting into ``copy=False`` are
+                responsible for the buffer lifetime.
 
         Returns:
             numpy.ndarray: The result NumPy array.
         """
-        from quadrants.lang._interop import (  # pylint: disable=C0415
-            can_zerocopy,
-            current_arch_is_cpu,
-            dlpack_to_torch,
-        )
+        if copy is False:
+            from quadrants.lang._interop import (  # pylint: disable=C0415
+                can_zerocopy,
+                current_arch_is_cpu,
+                dlpack_to_torch,
+            )
 
-        if copy is not True and can_zerocopy(is_field=True, dtype=self.dtype, shape=self.shape):
-            # See ``ScalarField.to_numpy`` for why DLPack is restricted to CPU backends.
-            if current_arch_is_cpu():
-                try:
-                    tc = dlpack_to_torch(self)
-                except ImportError:
-                    if copy is False:
-                        raise ValueError("Zero-copy to numpy requires torch to be installed")
-                    tc = None
-                if tc is not None:
-                    as_vector = self.m == 1 and not keep_dims
-                    shape_ext = (self.n,) if as_vector else (self.n, self.m)
-                    expected = self.shape + shape_ext
-                    np_arr = tc.numpy()
-                    if np_arr.shape != expected:
-                        np_arr = np_arr.reshape(expected)
-                    if dtype is not None and np_arr.dtype != dtype:
-                        if copy is False:
-                            raise ValueError("copy=False is incompatible with dtype conversion")
-                        return np_arr.astype(dtype)
-                    return np_arr
-            if copy is False:
+            if not can_zerocopy(is_field=True, dtype=self.dtype, shape=self.shape):
+                raise ValueError("Zero-copy not available for this backend/type combination")
+            if not current_arch_is_cpu():
                 raise ValueError("Zero-copy to numpy requires a CPU backend")
-        elif copy is False:
-            raise ValueError("Zero-copy not available for this backend/type combination")
+            try:
+                tc = dlpack_to_torch(self)
+            except ImportError as e:
+                raise ValueError("Zero-copy to numpy requires torch to be installed") from e
+            as_vector = self.m == 1 and not keep_dims
+            shape_ext = (self.n,) if as_vector else (self.n, self.m)
+            expected = self.shape + shape_ext
+            np_arr = tc.numpy()
+            if np_arr.shape != expected:
+                np_arr = np_arr.reshape(expected)
+            if dtype is not None and np_arr.dtype != dtype:
+                raise ValueError("copy=False is incompatible with dtype conversion")
+            return np_arr
 
         if dtype is None:
             dtype = to_numpy_type(self.dtype)

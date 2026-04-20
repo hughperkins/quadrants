@@ -172,22 +172,23 @@ class Ndarray:
         """Converts ndarray to a numpy array.
 
         Args:
-            copy: ``None`` prefers zero-copy (CPU only), ``True`` forces copy, ``False`` requires zero-copy or raises.
+            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` requires zero-copy via DLPack
+                (CPU backend + torch installed) or raises.  Note: zero-copy numpy arrays alias the ndarray's underlying
+                C++ runtime memory and become invalid after ``qd.reset()``.
 
         Returns:
             numpy.ndarray: The result numpy array.
         """
-        if copy is not True:
+        if copy is False:
             from quadrants.lang._interop import dlpack_to_torch  # pylint: disable=C0415
 
             try:
                 tc = dlpack_to_torch(self)
-                if tc.device.type == "cpu":
-                    return tc.numpy()
-            except (ImportError, RuntimeError):
-                pass
-            if copy is False:
+            except (ImportError, RuntimeError) as e:
+                raise ValueError("Zero-copy to numpy not available (requires CPU backend and torch)") from e
+            if tc.device.type != "cpu":
                 raise ValueError("Zero-copy to numpy not available (requires CPU backend and torch)")
+            return tc.numpy()
 
         arr = np.zeros(shape=self.arr.total_shape(), dtype=to_numpy_type(self.dtype))
         from quadrants._kernels import ndarray_to_ext_arr  # pylint: disable=C0415
@@ -202,22 +203,23 @@ class Ndarray:
 
         Args:
             as_vector: Whether to treat as a vector ndarray.
-            copy: ``None`` prefers zero-copy (CPU only), ``True`` forces copy, ``False`` requires zero-copy or raises.
+            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` requires zero-copy via DLPack
+                (CPU backend + torch installed) or raises.  Note: zero-copy numpy arrays alias the ndarray's underlying
+                C++ runtime memory and become invalid after ``qd.reset()``.
 
         Returns:
             numpy.ndarray: The result numpy array.
         """
-        if copy is not True:
+        if copy is False:
             from quadrants.lang._interop import dlpack_to_torch  # pylint: disable=C0415
 
             try:
                 tc = dlpack_to_torch(self)
-                if tc.device.type == "cpu":
-                    return tc.numpy()
-            except (ImportError, RuntimeError):
-                pass
-            if copy is False:
+            except (ImportError, RuntimeError) as e:
+                raise ValueError("Zero-copy to numpy not available (requires CPU backend and torch)") from e
+            if tc.device.type != "cpu":
                 raise ValueError("Zero-copy to numpy not available (requires CPU backend and torch)")
+            return tc.numpy()
 
         arr = np.zeros(shape=self.arr.total_shape(), dtype=to_numpy_type(self.dtype))
         from quadrants._kernels import (  # pylint: disable=C0415

@@ -252,41 +252,36 @@ class ScalarField(Field):
         """Converts this field to a `numpy.ndarray`.
 
         Args:
-            copy: ``None`` (default) prefers zero-copy, ``True`` forces a copy, ``False`` requires zero-copy or raises.
+            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` requires zero-copy via DLPack
+                (CPU backend + torch installed) or raises.  Note: zero-copy numpy arrays alias the field's underlying
+                C++ runtime memory and become invalid after ``qd.reset()`` -- callers opting into ``copy=False`` are
+                responsible for the buffer lifetime.
         """
         if self.parent()._snode.ptr.type == _qd_core.SNodeType.dynamic:
             warn(
                 "You are trying to convert a dynamic snode to a numpy array, be aware that inactive items in the snode will be converted to zeros in the resulting array."
             )
-        from quadrants.lang._interop import (  # pylint: disable=C0415
-            can_zerocopy,
-            current_arch_is_cpu,
-            dlpack_to_torch,
-        )
+        if copy is False:
+            from quadrants.lang._interop import (  # pylint: disable=C0415
+                can_zerocopy,
+                current_arch_is_cpu,
+                dlpack_to_torch,
+            )
 
-        if copy is not True and can_zerocopy(is_field=True, dtype=self.dtype, is_scalar_field=True, shape=self.shape):
-            # Only attempt DLPack export on CPU backends -- on GPU backends the DLPack-wrapped torch tensor cannot
-            # be zero-copied to numpy anyway, and caching it on the field can outlive a ``qd.reset()`` (the field's
-            # underlying device memory is freed by the reset, but the cached tensor's deleter later dereferences it).
-            if current_arch_is_cpu():
-                try:
-                    tc = dlpack_to_torch(self)
-                except ImportError:
-                    if copy is False:
-                        raise ValueError("Zero-copy to numpy requires torch to be installed")
-                    tc = None
-                if tc is not None:
-                    np_arr = tc.numpy()
-                    if dtype is not None and np_arr.dtype != dtype:
-                        if copy is False:
-                            raise ValueError("copy=False is incompatible with dtype conversion")
-                        np_dtype = to_numpy_type(dtype) if isinstance(dtype, _qd_core.DataTypeCxx) else dtype
-                        return np_arr.astype(np_dtype)
-                    return np_arr
-            if copy is False:
+            if not can_zerocopy(is_field=True, dtype=self.dtype, is_scalar_field=True, shape=self.shape):
+                raise ValueError("Zero-copy not available for this backend/type combination")
+            if not current_arch_is_cpu():
                 raise ValueError("Zero-copy to numpy requires a CPU backend")
-        elif copy is False:
-            raise ValueError("Zero-copy not available for this backend/type combination")
+            try:
+                tc = dlpack_to_torch(self)
+            except ImportError as e:
+                raise ValueError("Zero-copy to numpy requires torch to be installed") from e
+            np_arr = tc.numpy()
+            if dtype is not None:
+                np_dtype = to_numpy_type(dtype) if isinstance(dtype, _qd_core.DataTypeCxx) else dtype
+                if np_arr.dtype != np_dtype:
+                    raise ValueError("copy=False is incompatible with dtype conversion")
+            return np_arr
 
         if dtype is None:
             dtype = to_numpy_type(self.dtype)
