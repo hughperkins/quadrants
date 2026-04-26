@@ -1,10 +1,11 @@
+from functools import cached_property
 from typing import TYPE_CHECKING, cast
 
 import quadrants.lang
 from quadrants._lib import core as _qd_core
 from quadrants._lib.core.quadrants_python import DataTypeCxx
 from quadrants._logging import warn
-from quadrants.lang import impl
+from quadrants.lang import _interop, impl
 from quadrants.lang.exception import QuadrantsSyntaxError
 from quadrants.lang.util import (
     in_python_scope,
@@ -99,6 +100,16 @@ class Field:
     def _set_dual(self, dual: "Field") -> None:
         """Sets corresponding dual field (forward mode)."""
         self.dual = dual
+
+    def _invalidate_zerocopy_cache(self) -> None:
+        """Hook called by ``impl.reset()`` (via ``pyquadrants.cache_holders``) before C++ teardown.
+
+        Subclasses that support zero-copy define ``_zerocopy_cache`` as a ``cached_property``;
+        we read it via ``__dict__.get`` so invalidation never triggers the lazy init.
+        """
+        cache = self.__dict__.get("_zerocopy_cache")
+        if cache is not None:
+            cache.invalidate()
 
     @python_scope
     def fill(self, val: int | float) -> None:
@@ -234,6 +245,18 @@ class ScalarField(Field):
         impl.get_runtime().materialize()
         return impl.get_runtime().prog.field_to_dlpack(self._snode.ptr, 0, 0, 0)
 
+    @cached_property
+    def _zerocopy_cache(self) -> _interop._ZerocopyCache | None:
+        """Lazily-constructed DLPack cache. ``None`` when zero-copy is unsupported.
+
+        Computed once per instance (see review feedback #17 on PR #450). Registers ``self`` in
+        ``pyquadrants.cache_holders`` so the cache is invalidated on ``qd.reset()`` / ``qd.init()``
+        BEFORE C++ teardown.
+        """
+        return _interop.make_zerocopy_cache_if_supported(
+            self, is_field=True, dtype=self.dtype, is_scalar_field=True, shape=self.shape
+        )
+
     def fill(self, val):
         """Fills this scalar field with a specified value."""
         if in_python_scope():
@@ -252,36 +275,28 @@ class ScalarField(Field):
         """Converts this field to a `numpy.ndarray`.
 
         Args:
-            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` requires zero-copy via DLPack
-                (CPU backend + torch installed) or raises.  Note: zero-copy numpy arrays alias the field's underlying
-                C++ runtime memory and become invalid after ``qd.reset()`` -- callers opting into ``copy=False`` are
-                responsible for the buffer lifetime.
+            dtype: Optional target numpy dtype. Incompatible with ``copy=False`` if it differs
+                from the field's native dtype.
+            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` returns a
+                zero-copy DLPack view (requires CPU backend and a supported dtype) or raises
+                ``ValueError``. Note: zero-copy numpy arrays alias the field's underlying C++
+                runtime memory; callers opting into ``copy=False`` are responsible for the buffer
+                lifetime.
         """
         if self.parent()._snode.ptr.type == _qd_core.SNodeType.dynamic:
             warn(
                 "You are trying to convert a dynamic snode to a numpy array, be aware that inactive items in the snode will be converted to zeros in the resulting array."
             )
-        if copy is False:
-            from quadrants.lang._interop import (  # pylint: disable=C0415
-                can_zerocopy,
-                current_arch_is_cpu,
-                dlpack_to_torch,
-            )
+        np_dtype_target = None
+        if dtype is not None:
+            np_dtype_target = to_numpy_type(dtype) if isinstance(dtype, _qd_core.DataTypeCxx) else dtype
 
-            if not can_zerocopy(is_field=True, dtype=self.dtype, is_scalar_field=True, shape=self.shape):
-                raise ValueError("Zero-copy not available for this backend/type combination")
-            if not current_arch_is_cpu():
-                raise ValueError("Zero-copy to numpy requires a CPU backend")
-            try:
-                tc = dlpack_to_torch(self)
-            except ImportError as e:
-                raise ValueError("Zero-copy to numpy requires torch to be installed") from e
-            np_arr = tc.numpy()
-            if dtype is not None:
-                np_dtype = to_numpy_type(dtype) if isinstance(dtype, _qd_core.DataTypeCxx) else dtype
-                if np_arr.dtype != np_dtype:
-                    raise ValueError("copy=False is incompatible with dtype conversion")
-            return np_arr
+        if copy is False:
+            return _interop.get_zerocopy_numpy(self, copy=False, dtype_target=np_dtype_target)
+        # copy is None or True: try fast zerocopy+clone path, else kernel fallback.
+        arr = _interop.get_zerocopy_numpy(self, copy=True, dtype_target=np_dtype_target)
+        if arr is not None:
+            return arr
 
         if dtype is None:
             dtype = to_numpy_type(self.dtype)
@@ -300,27 +315,14 @@ class ScalarField(Field):
         """Converts this field to a `torch.tensor`.
 
         Args:
-            copy: ``None`` (default) prefers zero-copy, ``True`` forces a copy, ``False`` requires zero-copy or raises.
+            device: Optional torch device. Incompatible with ``copy=False`` if it differs from
+                the field's native device.
+            copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy,
+                ``False`` requires zero-copy or raises.
         """
-        from quadrants.lang._interop import (  # pylint: disable=C0415
-            can_zerocopy,
-            dlpack_to_torch,
-        )
-
-        if copy is not True and can_zerocopy(is_field=True, dtype=self.dtype, is_scalar_field=True, shape=self.shape):
-            import torch  # pylint: disable=C0415
-
-            tc = dlpack_to_torch(self)
-            if device is not None and tc.device != torch.device(device):
-                if copy is False:
-                    raise ValueError(
-                        f"copy=False is incompatible with device transfer (data on {tc.device}, requested {device})"
-                    )
-                return tc.to(device)
+        tc = _interop.get_zerocopy_torch(self, copy=copy, device=device)
+        if tc is not None:
             return tc
-
-        if copy is False:
-            raise ValueError("Zero-copy not available for this backend/type combination")
 
         import torch  # pylint: disable=C0415
 
