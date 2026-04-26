@@ -552,37 +552,40 @@ class StructField(Field):
     def to_numpy(self, *, copy=None):
         """Converts the Struct field instance to a dictionary of NumPy arrays.
 
+        Each member is converted independently and forwards ``copy`` directly: ``copy=None`` and
+        ``copy=True`` produce independent copies (per-member default for numpy), ``copy=False``
+        requires every member to be zero-copyable and raises otherwise. Each member's DLPack
+        export carries its own ``bytes_offset`` within the parent SNode cell, so AOS / interleaved
+        layouts are handled natively.
+
         The dictionary may be nested when converting nested structs.
 
         Args:
-            copy: ``None`` (default) prefers zero-copy, ``True`` forces a copy, ``False`` requires zero-copy or raises.
+            copy: forwarded to every member's :meth:`to_numpy`.
 
         Returns:
             Dict[str, Union[numpy.ndarray, Dict]]: The result NumPy array.
         """
-        # Struct children have interleaved SNode memory; DLPack cannot represent this, so always use kernel copy.
-        if copy is False:
-            raise ValueError("copy=False is not supported for StructField (interleaved memory layout)")
-        return {k: v.to_numpy(copy=True) for k, v in self._items}
+        return {k: v.to_numpy(copy=copy) for k, v in self._items}
 
     @python_scope
     def to_torch(self, device=None, *, copy=None):
         """Converts the Struct field instance to a dictionary of PyTorch tensors.
 
+        Each member is converted independently and forwards ``copy`` and ``device`` directly.
+        Members may be zero-copy views (default) or independent copies (``copy=True``); see
+        :meth:`to_numpy` for the rationale on AOS / interleaved layouts.
+
         The dictionary may be nested when converting nested structs.
 
         Args:
-            device (torch.device, optional): The
-                desired device of returned tensor.
-            copy: ``None`` (default) prefers zero-copy, ``True`` forces a copy, ``False`` requires zero-copy or raises.
+            device (torch.device, optional): The desired device of returned tensors.
+            copy: forwarded to every member's :meth:`to_torch`.
 
         Returns:
-            Dict[str, Union[torch.Tensor, Dict]]: The result
-                PyTorch tensor.
+            Dict[str, Union[torch.Tensor, Dict]]: The result PyTorch tensor.
         """
-        if copy is False:
-            raise ValueError("copy=False is not supported for StructField (interleaved memory layout)")
-        return {k: v.to_torch(device=device, copy=True) for k, v in self._items}
+        return {k: v.to_torch(device=device, copy=copy) for k, v in self._items}
 
     @python_scope
     def __setitem__(self, indices, element):
