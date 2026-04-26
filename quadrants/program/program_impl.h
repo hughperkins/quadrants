@@ -23,11 +23,18 @@ struct ComputeOpImageRef {
 
 struct RuntimeContext;
 
+class Program;
+
 class ProgramImpl {
  public:
   // TODO: Make it safer, we exposed it for now as it's directly accessed
   // outside.
   CompileConfig *config;
+
+  // Back-reference to the owning `Program`, plumbed in from `Program`'s constructor so host-side per-launch paths
+  // (e.g. the adstack `SizeExpr` evaluator) can reach `SNodeRwAccessorsBank` without threading `Program *` through
+  // every kernel-launcher signature. Null until the owning Program sets it.
+  Program *program{nullptr};
 
  public:
   explicit ProgramImpl(CompileConfig &config);
@@ -126,6 +133,12 @@ class ProgramImpl {
   }
 
   virtual void finalize() {
+  }
+
+  // Hook invoked by `Program::finalize()` before any teardown sync. Lets backends flip state (e.g. the LLVM
+  // `finalizing_` flag used to suppress adstack-overflow polling) so the two `Program::synchronize()` calls that
+  // precede `finalize()` do not throw into the Program destructor path.
+  virtual void pre_finalize() {
   }
 
   virtual uint64 fetch_result_uint64(int i, uint64 *result_buffer) {

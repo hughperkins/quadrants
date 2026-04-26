@@ -91,6 +91,7 @@ Program::Program(Arch desired_arch) : snode_rw_accessors_bank_(this) {
 
   // program_impl_ should be set in the if-else branch above
   QD_ASSERT(program_impl_);
+  program_impl_->program = this;
 
   Device *compute_device = nullptr;
   compute_device = program_impl_->get_compute_device();
@@ -230,6 +231,34 @@ StreamSemaphore Program::flush() {
   return program_impl_->flush();
 }
 
+namespace {
+
+SNode *find_snode_by_id_recursive(SNode *root, int snode_id) {
+  if (root == nullptr) {
+    return nullptr;
+  }
+  if (root->id == snode_id) {
+    return root;
+  }
+  for (auto &child : root->ch) {
+    if (auto *hit = find_snode_by_id_recursive(child.get(), snode_id)) {
+      return hit;
+    }
+  }
+  return nullptr;
+}
+
+}  // namespace
+
+SNode *Program::get_snode_by_id(int snode_id) {
+  for (auto &tree : snode_trees_) {
+    if (auto *hit = find_snode_by_id_recursive(tree->root(), snode_id)) {
+      return hit;
+    }
+  }
+  return nullptr;
+}
+
 int Program::get_snode_tree_size() {
   return snode_trees_.size();
 }
@@ -306,6 +335,11 @@ void Program::finalize() {
     num_instances_ -= 1;
     return;
   }
+
+  // Notify the backend that teardown has started before the two teardown syncs below. On LLVM this flips
+  // `LlvmProgramImpl::finalizing_` so `check_adstack_overflow()` short-circuits: otherwise a pending overflow
+  // flag from a kernel the user never synced explicitly would throw into the Program destructor path.
+  program_impl_->pre_finalize();
 
   synchronize();
   QD_TRACE("Program finalizing...");
