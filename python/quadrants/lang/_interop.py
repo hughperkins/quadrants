@@ -278,37 +278,3 @@ def get_zerocopy_numpy(
     if copy is True:
         return arr.copy()
     return arr
-
-
-# ---------------------------------------------------------------------------
-# Backwards-compatible shims used by the in-tree pre-rework per-class methods.
-# Removed once items 3-5 of the rework migrate every call site to the new helpers.
-# ---------------------------------------------------------------------------
-
-
-def dlpack_to_torch(obj):
-    """Deprecated. Use :func:`get_zerocopy_torch` via :class:`_ZerocopyCache`.
-
-    Returns a cached zero-copy ``torch.Tensor`` view, calling ``qd.sync()`` on Metal each time.
-    Caches on the legacy attribute ``_qd_dlpack_tc``.
-    """
-    if not _HAS_TORCH:
-        raise ImportError("torch is not installed")
-    try:
-        tc = obj._qd_dlpack_tc
-    except AttributeError:
-        tc = _torch_from_dlpack(obj.to_dlpack())
-        obj._qd_dlpack_tc = tc
-    _metal_sync_runtime()
-    return tc
-
-
-def invalidate_zerocopy_cache(obj) -> None:
-    """Deprecated. Use the per-class ``_invalidate_zerocopy_cache`` method.
-
-    Removes the legacy cached DLPack torch tensor (``_qd_dlpack_tc``), if any.
-    """
-    try:
-        del obj._qd_dlpack_tc
-    except AttributeError:
-        pass
