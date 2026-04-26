@@ -374,23 +374,30 @@ def test_struct_field_to_torch_copy_true():
     qd.sync()
     d1 = s.to_torch()
     d2 = s.to_torch(copy=True)
+    # StructField always copies (AOS member views are not zero-copyable yet -- see struct.py docstring),
+    # so both calls allocate independent storage.
     assert d1["x"].data_ptr() != d2["x"].data_ptr()
     assert _to_cpu(d2["x"])[0] == 5.0
 
 
 @test_utils.test(arch=dlpack_arch)
-def test_struct_field_to_torch_aliases_memory():
-    """Each StructField member must be a true zero-copy view of its underlying SNode storage.
+def test_struct_field_to_torch_does_not_alias_memory():
+    """StructField always returns independent copies of each AOS member.
 
-    Regression for the previous behaviour that forced copy=True per child with the fabricated
-    "interleaved memory layout" rationale.
+    Quadrants' C++ ``field_to_dlpack`` does not currently emit cell-stride-aware DLPack views for
+    individual members of an AOS struct -- it computes contiguous strides at the member dtype size,
+    which would interleave neighboring members' bytes. Until that is fixed, ``StructField.to_torch``
+    forces ``copy=True`` per-member, so a kernel write into the field must NOT be reflected in a
+    previously-obtained dict.
     """
     if is_v520_amdgpu():
         pytest.skip("can't run torch accessor kernels on v520")
     s = qd.Struct.field({"a": qd.i32, "b": qd.i32}, shape=(4,))
     s[0] = {"a": 1, "b": 2}
     qd.sync()
-    d = s.to_torch()  # default = view dict
+    d = s.to_torch()
+    assert _to_cpu(d["a"])[0] == 1
+    assert _to_cpu(d["b"])[0] == 2
 
     @qd.kernel
     def write(s: qd.template()):
@@ -399,20 +406,21 @@ def test_struct_field_to_torch_aliases_memory():
 
     write(s)
     qd.sync()
-    assert d["a"][0] == 99
-    assert d["b"][0] == 77
+    # Snapshot must be unchanged because StructField.to_torch always copies.
+    assert _to_cpu(d["a"])[0] == 1
+    assert _to_cpu(d["b"])[0] == 2
 
 
 @test_utils.test(arch=[qd.cpu])
-def test_struct_field_to_numpy_copy_false_per_member():
-    """copy=False must succeed on a StructField -- each member is independently zero-copyable."""
+def test_struct_field_copy_false_raises():
+    """``copy=False`` is rejected for StructField (AOS member views not supported yet)."""
     s = qd.Struct.field({"a": qd.f32, "b": qd.i32}, shape=(3,))
     s[0] = {"a": 1.5, "b": 7}
     qd.sync()
-    d = s.to_numpy(copy=False)
-    assert isinstance(d, dict)
-    assert d["a"][0] == 1.5
-    assert d["b"][0] == 7
+    with pytest.raises(ValueError, match="StructField.to_numpy.*copy=False"):
+        s.to_numpy(copy=False)
+    with pytest.raises(ValueError, match="StructField.to_torch.*copy=False"):
+        s.to_torch(copy=False)
 
 
 # ---------------------------------------------------------------------------

@@ -552,40 +552,49 @@ class StructField(Field):
     def to_numpy(self, *, copy=None):
         """Converts the Struct field instance to a dictionary of NumPy arrays.
 
-        Each member is converted independently and forwards ``copy`` directly: ``copy=None`` and
-        ``copy=True`` produce independent copies (per-member default for numpy), ``copy=False``
-        requires every member to be zero-copyable and raises otherwise. Each member's DLPack
-        export carries its own ``bytes_offset`` within the parent SNode cell, so AOS / interleaved
-        layouts are handled natively.
+        Struct fields use AOS cell layout, but Quadrants' C++ ``field_to_dlpack`` does not currently
+        emit cell-stride-aware DLPack views for individual members (it computes contiguous strides
+        at the member dtype size, which would interleave neighboring members' bytes). Until the C++
+        export is taught about AOS strides, ``StructField`` always returns independent copies; the
+        ``copy`` argument is accepted for API symmetry but ``copy=False`` is rejected.
 
         The dictionary may be nested when converting nested structs.
 
         Args:
-            copy: forwarded to every member's :meth:`to_numpy`.
+            copy: must be ``None`` or ``True``; ``copy=False`` raises ``ValueError``.
 
         Returns:
             Dict[str, Union[numpy.ndarray, Dict]]: The result NumPy array.
         """
-        return {k: v.to_numpy(copy=copy) for k, v in self._items}
+        if copy is False:
+            raise ValueError(
+                "StructField.to_numpy(copy=False) is not supported: AOS member views require "
+                "cell-stride-aware DLPack export which the C++ runtime does not emit yet."
+            )
+        return {k: v.to_numpy(copy=True) for k, v in self._items}
 
     @python_scope
     def to_torch(self, device=None, *, copy=None):
         """Converts the Struct field instance to a dictionary of PyTorch tensors.
 
-        Each member is converted independently and forwards ``copy`` and ``device`` directly.
-        Members may be zero-copy views (default) or independent copies (``copy=True``); see
-        :meth:`to_numpy` for the rationale on AOS / interleaved layouts.
+        See :meth:`to_numpy` for why members are always returned as independent copies. ``copy=False``
+        is rejected.
 
         The dictionary may be nested when converting nested structs.
 
         Args:
             device (torch.device, optional): The desired device of returned tensors.
-            copy: forwarded to every member's :meth:`to_torch`.
+            copy: must be ``None`` or ``True``; ``copy=False`` raises ``ValueError``.
 
         Returns:
             Dict[str, Union[torch.Tensor, Dict]]: The result PyTorch tensor.
         """
-        return {k: v.to_torch(device=device, copy=copy) for k, v in self._items}
+        if copy is False:
+            raise ValueError(
+                "StructField.to_torch(copy=False) is not supported: AOS member views require "
+                "cell-stride-aware DLPack export which the C++ runtime does not emit yet."
+            )
+        return {k: v.to_torch(device=device, copy=True) for k, v in self._items}
 
     @python_scope
     def __setitem__(self, indices, element):
