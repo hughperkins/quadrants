@@ -3,11 +3,10 @@
 import functools
 import numbers
 from collections.abc import Iterable
+from functools import cached_property
 from itertools import product
 
 import numpy as np
-
-from functools import cached_property
 
 from quadrants._lib import core as qd_python_core
 from quadrants._lib.utils import qd_python_core as _qd_python_core
