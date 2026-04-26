@@ -233,11 +233,10 @@ def get_zerocopy_torch(
 ) -> "_torch_mod.Tensor | None":
     """Zero-copy entry point for ``to_torch``.
 
-    Returns the cached zero-copy view, optionally cloned and / or moved to ``device``. The
-    ``copy`` argument selects between view (``False`` / ``None``) and independent buffer (``True``);
-    crucially, the zerocopy export is taken **even when ``copy=True``** and the result is then
-    cloned -- DLPack export is cheaper than the kernel-copy fallback path even when followed by a
-    full clone.
+    Returns the cached zero-copy view, optionally cloned and / or moved to ``device``. The ``copy`` argument selects
+    between view (``False`` / ``None``) and independent buffer (``True``); crucially, the zerocopy export is taken
+    **even when ``copy=True``** and the result is then cloned -- DLPack export is cheaper than the kernel-copy fallback
+    path even when followed by a full clone.
 
     Args:
         owner: A Field or Ndarray with a ``_zerocopy_cache: _ZerocopyCache | None`` attribute and a
@@ -247,9 +246,8 @@ def get_zerocopy_torch(
             (incompatible with ``copy=False``).
 
     Returns:
-        The torch tensor, or ``None`` when ``owner._zerocopy_cache is None`` (i.e. zero-copy is not
-        supported for this instance) and ``copy is not False`` -- the caller should fall back to its
-        kernel-copy path.
+        The torch tensor, or ``None`` when ``owner._zerocopy_cache is None`` (i.e. zero-copy is not supported for this
+        instance) and ``copy is not False`` -- the caller should fall back to its kernel-copy path.
 
     Raises:
         ValueError: when ``copy=False`` but zerocopy is unsupported for this instance, or when a

@@ -384,11 +384,10 @@ def test_struct_field_to_torch_copy_true():
 def test_struct_field_to_torch_does_not_alias_memory():
     """StructField always returns independent copies of each AOS member.
 
-    Quadrants' C++ ``field_to_dlpack`` does not currently emit cell-stride-aware DLPack views for
-    individual members of an AOS struct -- it computes contiguous strides at the member dtype size,
-    which would interleave neighboring members' bytes. Until that is fixed, ``StructField.to_torch``
-    forces ``copy=True`` per-member, so a kernel write into the field must NOT be reflected in a
-    previously-obtained dict.
+    Quadrants' C++ ``field_to_dlpack`` does not currently emit cell-stride-aware DLPack views for individual members of
+    an AOS struct -- it computes contiguous strides at the member dtype size, which would interleave neighboring
+    members' bytes. Until that is fixed, ``StructField.to_torch`` forces ``copy=True`` per-member, so a kernel write
+    into the field must NOT be reflected in a previously-obtained dict.
     """
     if is_v520_amdgpu():
         pytest.skip("can't run torch accessor kernels on v520")
@@ -432,10 +431,9 @@ def test_struct_field_copy_false_raises():
 def test_zerocopy_cache_survives_reset():
     """Holding a zero-copy view across qd.reset() must not segfault.
 
-    Regression for the use-after-free that motivated the Genesis to_numpy()-always-copies
-    workaround: cache invalidation now runs BEFORE the C++ program is torn down (see
-    pyquadrants.cache_holders in impl.py), so the DLPack deleter on the cached tensor
-    operates on still-valid memory.
+    Regression for the use-after-free that motivated the Genesis to_numpy()-always-copies workaround: cache invalidation
+    now runs BEFORE the C++ program is torn down (see pyquadrants.cache_holders in impl.py), so the DLPack deleter on
+    the cached tensor operates on still-valid memory.
     """
     arch = qd.cfg.arch
     f = qd.field(qd.f32, shape=(4,))
@@ -462,8 +460,7 @@ def test_zerocopy_cache_survives_reset():
 def test_zerocopy_cache_fresh_after_reset():
     """After qd.reset() / qd.init(), a freshly-constructed Field gets a fresh cache.
 
-    Specifically, the new field's data_ptr is not stale-equal to a previous cycle's, AND
-    the new view sees current data.
+    Specifically, the new field's data_ptr is not stale-equal to a previous cycle's, AND the new view sees current data.
     """
     arch = qd.cfg.arch
     f1 = qd.field(qd.f32, shape=(2,))

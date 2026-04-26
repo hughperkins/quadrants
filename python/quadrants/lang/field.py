@@ -253,8 +253,7 @@ class ScalarField(Field):
         """Lazily-constructed DLPack cache. ``None`` when zero-copy is unsupported.
 
         Computed once per instance (see review feedback #17 on PR #450). Registers ``self`` in
-        ``pyquadrants.cache_holders`` so the cache is invalidated on ``qd.reset()`` / ``qd.init()``
-        BEFORE C++ teardown.
+        ``pyquadrants.cache_holders`` so the cache is invalidated on ``qd.reset()`` / ``qd.init()`` BEFORE C++ teardown.
         """
         # A ScalarField that is a member of a multi-member StructField has AOS layout: its parent
         # SNode (the struct cell) holds multiple `place` children, and consecutive elements of the
@@ -291,11 +290,10 @@ class ScalarField(Field):
         Args:
             dtype: Optional target numpy dtype. Incompatible with ``copy=False`` if it differs
                 from the field's native dtype.
-            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` returns a
-                zero-copy DLPack view (requires CPU backend and a supported dtype) or raises
-                ``ValueError``. Note: zero-copy numpy arrays alias the field's underlying C++
-                runtime memory; callers opting into ``copy=False`` are responsible for the buffer
-                lifetime.
+            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` returns a zero-copy DLPack view
+                (requires CPU backend and a supported dtype) or raises ``ValueError``. Note: zero-copy numpy arrays
+                alias the field's underlying C++ runtime memory; callers opting into ``copy=False`` are responsible for
+                the buffer lifetime.
         """
         if self.parent()._snode.ptr.type == _qd_core.SNodeType.dynamic:
             warn(

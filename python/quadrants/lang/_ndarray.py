@@ -87,8 +87,7 @@ class Ndarray:
     def to_torch(self, *, copy=None):
         """Converts this ndarray to a ``torch.Tensor``.
 
-        Zero-copy via DLPack when supported for this backend/dtype, otherwise an independent
-        kernel-copied tensor.
+        Zero-copy via DLPack when supported for this backend/dtype, otherwise an independent kernel-copied tensor.
 
         Args:
             copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy,

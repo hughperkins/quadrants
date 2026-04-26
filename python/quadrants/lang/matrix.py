@@ -1344,11 +1344,10 @@ class MatrixField(Field):
                 When keep_dims=False, the resulting numpy array should skip the matrix dims with size 1.
                 For example, a 4x1 or 1x4 matrix field with 5x6x7 elements results in an array of shape 5x6x7x4.
             dtype (DataType, optional): The desired data type of returned numpy array.
-            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` returns a
-                zero-copy DLPack view (requires CPU backend and a supported dtype) or raises
-                ``ValueError``. Note: zero-copy numpy arrays alias the field's underlying C++
-                runtime memory; callers opting into ``copy=False`` are responsible for the buffer
-                lifetime.
+            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` returns a zero-copy DLPack view
+                (requires CPU backend and a supported dtype) or raises ``ValueError``. Note: zero-copy numpy arrays
+                alias the field's underlying C++ runtime memory; callers opting into ``copy=False`` are responsible for
+                the buffer lifetime.
 
         Returns:
             numpy.ndarray: The result NumPy array.
