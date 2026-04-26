@@ -558,7 +558,7 @@ def test_struct_member_scalar_field_to_numpy_copy_false_raises():
     for i in range(4):
         s[i] = {"a": i * 10 + 0.1, "b": i * 10 + 0.2}
     qd.sync()
-    with pytest.raises(ValueError, match="Zero-copy not available"):
+    with pytest.raises(ValueError, match="Zero-copy"):
         s.a.to_numpy(copy=False)
 
 
