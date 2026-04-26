@@ -1216,12 +1216,12 @@ class MatrixField(Field):
         """Lazily-constructed DLPack cache. ``None`` when zero-copy is unsupported.
 
         Constructed once per instance (closes review #17 on PR #450); registers ``self`` with
-        ``pyquadrants.cache_holders`` (closes review #18) so ``qd.reset()`` / ``qd.init()``
-        invalidate the cache BEFORE C++ teardown.
+        ``pyquadrants.cache_holders`` (closes review #18) so ``qd.reset()`` / ``qd.init()`` invalidate the cache BEFORE
+        C++ teardown.
         """
-        # Defensive: if this MatrixField is a member of a multi-member StructField, its
-        # representative SNode shares a parent with sibling members and the C++ DLPack export
-        # produces broken AOS strides. See ScalarField._zerocopy_cache for the full rationale.
+        # Defensive: if this MatrixField is a member of a multi-member StructField, its representative SNode shares a
+        # parent with sibling members and the C++ DLPack export produces broken AOS strides. See
+        # ScalarField._zerocopy_cache for the full rationale.
         parent_snode = self.parent()._snode.ptr
         is_aos_struct_member = parent_snode.get_num_ch() > 1
         return _interop.make_zerocopy_cache_if_supported(
@@ -1235,8 +1235,8 @@ class MatrixField(Field):
     def _matrix_view_shape(self, keep_dims: bool) -> tuple[tuple[int, ...], bool]:
         """Returns ``(expected_shape, as_vector)`` for ``to_torch`` / ``to_numpy``.
 
-        Keeps the n/m/keep_dims handling in one place rather than duplicating it in each
-        conversion method (closes review #13, #14).
+        Keeps the n/m/keep_dims handling in one place rather than duplicating it in each conversion method (closes
+        review #13, #14).
         """
         as_vector = self.m == 1 and not keep_dims
         shape_ext = (self.n,) if as_vector else (self.n, self.m)

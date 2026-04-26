@@ -374,9 +374,9 @@ class PyQuadrants:
         self.grad_replaced = False
         self.kernels: list[Kernel] = kernels or []
         self.ndarrays: weakref.WeakSet[Ndarray] = weakref.WeakSet()
-        # Holders of zero-copy DLPack caches (Ndarray, ScalarField, MatrixField, ...).
-        # On reset, each holder's `_invalidate_zerocopy_cache()` is called BEFORE the C++ program
-        # is torn down, so that DLPack deleters run while the underlying memory is still valid.
+        # Holders of zero-copy DLPack caches (Ndarray, ScalarField, MatrixField, ...). On reset, each holder's
+        # `_invalidate_zerocopy_cache()` is called BEFORE the C++ program is torn down, so that DLPack deleters run
+        # while the underlying memory is still valid.
         self.cache_holders: weakref.WeakSet = weakref.WeakSet()
         self._signal_handler_registry = None
         self.unfinalized_fields_builder = {}
@@ -569,9 +569,9 @@ def reset():
     old_ndarrays = pyquadrants.ndarrays
     old_kernels = pyquadrants.kernels
     old_cache_holders = pyquadrants.cache_holders
-    # Drop zero-copy caches BEFORE the C++ program is torn down. The cached torch tensors / numpy
-    # arrays alias C++ memory via DLPack; their deleters must run while the program is still alive,
-    # otherwise we get use-after-free at GC time (segfault on AMD GPU, Metal, etc.).
+    # Drop zero-copy caches BEFORE the C++ program is torn down. The cached torch tensors / numpy arrays alias C++
+    # memory via DLPack; their deleters must run while the program is still alive, otherwise we get use-after-free at
+    # GC time (segfault on AMD GPU, Metal, etc.).
     for h in old_cache_holders:
         h._invalidate_zerocopy_cache()
     pyquadrants.clear()

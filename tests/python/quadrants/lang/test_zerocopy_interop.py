@@ -445,9 +445,9 @@ def test_zerocopy_cache_survives_reset():
     qd.reset()
     qd.init(arch=arch)
 
-    # Re-create and verify the new field works -- the previous-cycle 'held' tensor is allowed
-    # to remain alive (its data may now be released, but we don't dereference it). What we
-    # MUST not have is a crash inside the previous-cycle deleter when 'held' is GC'd.
+    # Re-create and verify the new field works -- the previous-cycle 'held' tensor is allowed to remain alive (its
+    # data may now be released, but we don't dereference it). What we MUST not have is a crash inside the
+    # previous-cycle deleter when 'held' is GC'd.
     f2 = qd.field(qd.f32, shape=(4,))
     f2[0] = 42.0
     qd.sync()
@@ -488,9 +488,9 @@ def test_zerocopy_cache_fresh_after_reset():
 def test_clone_after_kernel_write_returns_up_to_date_data():
     """After a kernel writes to a field, an immediate clone must see the post-write values.
 
-    Specifically targets the Apple Metal path where qd.sync() flushes pending Quadrants kernels
-    and torch.mps.synchronize() flushes pending MPS clone copies; both must run for the cloned
-    tensor to be observably equal to the field's current values.
+    Specifically targets the Apple Metal path where qd.sync() flushes pending Quadrants kernels and
+    torch.mps.synchronize() flushes pending MPS clone copies; both must run for the cloned tensor to be observably
+    equal to the field's current values.
     """
     if is_v520_amdgpu():
         pytest.skip("can't run torch accessor kernels on v520")

@@ -71,9 +71,9 @@ class Ndarray:
     def _zerocopy_cache(self) -> _interop._ZerocopyCache | None:
         """Lazily-constructed DLPack cache. ``None`` when zero-copy is unsupported for this instance.
 
-        Computed once per instance (review feedback: avoid re-checking ``can_zerocopy`` per call).
-        Registers ``self`` with ``pyquadrants.cache_holders`` so the cache is invalidated on
-        ``qd.reset()`` / ``qd.init()`` BEFORE C++ teardown.
+        Computed once per instance (review feedback: avoid re-checking ``can_zerocopy`` per call). Registers ``self``
+        with ``pyquadrants.cache_holders`` so the cache is invalidated on ``qd.reset()`` / ``qd.init()`` BEFORE C++
+        teardown.
         """
         return _interop.make_zerocopy_cache_if_supported(self, is_field=False, dtype=self.dtype)
 
@@ -90,8 +90,8 @@ class Ndarray:
         Zero-copy via DLPack when supported for this backend/dtype, otherwise an independent kernel-copied tensor.
 
         Args:
-            copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy,
-                ``False`` requires zero-copy or raises.
+            copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy, ``False`` requires
+                zero-copy or raises.
         """
         tc = _interop.get_zerocopy_torch(self, copy=copy)
         if tc is not None:

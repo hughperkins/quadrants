@@ -1,19 +1,19 @@
 """Zero-copy tensor interop between Quadrants and PyTorch / NumPy via DLPack.
 
-Provides cached, zero-copy conversion of Fields and Ndarrays to ``torch.Tensor`` and ``numpy.ndarray`` using
-DLPack. Returned tensors / arrays alias Quadrants device memory directly -- modifications on either side are
-visible on the other (after the appropriate sync; see :class:`_ZerocopyCache`).
+Provides cached, zero-copy conversion of Fields and Ndarrays to ``torch.Tensor`` and ``numpy.ndarray`` using DLPack.
+Returned tensors / arrays alias Quadrants device memory directly -- modifications on either side are visible on the
+other (after the appropriate sync; see :class:`_ZerocopyCache`).
 
-Public API used by :mod:`quadrants.lang._ndarray`, :mod:`quadrants.lang.field`, :mod:`quadrants.lang.matrix`,
-and :mod:`quadrants.lang.struct`:
+Public API used by :mod:`quadrants.lang._ndarray`, :mod:`quadrants.lang.field`, :mod:`quadrants.lang.matrix`, and
+:mod:`quadrants.lang.struct`:
 
 * :func:`can_zerocopy` -- predicate (call once, cache result on the source instance).
 * :class:`_ZerocopyCache` -- per-instance container for the torch + numpy DLPack views.
-* :func:`make_zerocopy_cache_if_supported` -- constructor that registers the owner with the runtime
-  so the cache is invalidated on ``qd.reset()`` / ``qd.init()`` BEFORE C++ teardown.
-* :func:`get_zerocopy_torch`, :func:`get_zerocopy_numpy` -- thin entry points used by every per-class
-  ``to_torch`` / ``to_numpy``. Implement the always-zerocopy-then-clone semantic and the Apple Metal
-  double-sync (``qd.sync()`` on read, ``torch.mps.synchronize()`` after ``.clone()`` / ``.to()``).
+* :func:`make_zerocopy_cache_if_supported` -- constructor that registers the owner with the runtime so the cache is
+  invalidated on ``qd.reset()`` / ``qd.init()`` BEFORE C++ teardown.
+* :func:`get_zerocopy_torch`, :func:`get_zerocopy_numpy` -- thin entry points used by every per-class ``to_torch`` /
+  ``to_numpy``. Implement the always-zerocopy-then-clone semantic and the Apple Metal double-sync (``qd.sync()`` on
+  read, ``torch.mps.synchronize()`` after ``.clone()`` / ``.to()``).
 """
 
 from __future__ import annotations
@@ -29,8 +29,8 @@ from quadrants.types import primitive_types
 if TYPE_CHECKING:
     import torch as _torch_mod  # for type hints only
 
-# Optional torch import: numpy zero-copy works without torch (np.from_dlpack), so importing this
-# module must not fail on torch-less environments (e.g. the Vulkan CI runner).
+# Optional torch import: numpy zero-copy works without torch (np.from_dlpack), so importing this module must not fail
+# on torch-less environments (e.g. the Vulkan CI runner).
 try:
     import torch as _torch
     from torch.utils.dlpack import from_dlpack as _torch_from_dlpack
@@ -65,8 +65,8 @@ def _compute_torch_mps_supports_dlpack_bytes_offset() -> bool:
         return False
 
 
-# Evaluate once at import. Reviewer feedback on PR #450: lru_cache(maxsize=1) on a zero-arg helper
-# adds per-call overhead with no benefit; a module constant is cheaper and clearer.
+# Evaluate once at import. Reviewer feedback on PR #450: lru_cache(maxsize=1) on a zero-arg helper adds per-call
+# overhead with no benefit; a module constant is cheaper and clearer.
 _TORCH_MPS_SUPPORTS_DLPACK_BYTES_OFFSET = _compute_torch_mps_supports_dlpack_bytes_offset()
 
 
@@ -84,21 +84,19 @@ def can_zerocopy(
 ) -> bool:
     """Check whether zero-copy DLPack export is available for the current backend and data type.
 
-    This is intended to be called **once** at the source instance's construction (or first access)
-    and cached on the instance, not re-evaluated on every ``to_torch`` / ``to_numpy`` call.
+    This is intended to be called **once** at the source instance's construction (or first access) and cached on the
+    instance, not re-evaluated on every ``to_torch`` / ``to_numpy`` call.
 
     Args:
         is_field: ``True`` for SNode-backed Fields, ``False`` for Ndarrays.
-        dtype: The Quadrants dtype (e.g. ``qd.f32``). Types not in the C++ DLPack whitelist (f16, u8, ...)
-            return False.
+        dtype: The Quadrants dtype (e.g. ``qd.f32``). Types not in the C++ DLPack whitelist (f16, u8, ...) return False.
         is_scalar_field: ``True`` when the source is a ``ScalarField`` (0-dim DLPack edge-case).
         shape: Batch shape of the field/ndarray.
-        is_aos_struct_member: ``True`` when the field is a member of a multi-member ``StructField``.
-            Quadrants' C++ ``field_to_dlpack`` does not currently emit cell-stride-aware DLPack views
-            for AOS struct members (it computes contiguous strides at the member dtype size, but the
-            actual stride between consecutive elements of the same member is ``sizeof(cell)``), so the
-            zerocopy view would interleave neighboring members' bytes. Force kernel-copy until the
-            C++ export is fixed.
+        is_aos_struct_member: ``True`` when the field is a member of a multi-member ``StructField``. Quadrants' C++
+            ``field_to_dlpack`` does not currently emit cell-stride-aware DLPack views for AOS struct members (it
+            computes contiguous strides at the member dtype size, but the actual stride between consecutive elements of
+            the same member is ``sizeof(cell)``), so the zerocopy view would interleave neighboring members' bytes.
+            Force kernel-copy until the C++ export is fixed.
 
     Returns:
         ``True`` if zero-copy via DLPack is supported.
@@ -122,10 +120,10 @@ def can_zerocopy(
 class _DLPackV1Adapter:
     """Wraps a DLPack v0 PyCapsule into a v1-compatible object.
 
-    Quadrants' C++ ``field_to_dlpack`` / ``ndarray_to_dlpack`` return raw PyCapsules (the v0 DLPack
-    protocol). Modern NumPy (>= 1.23 with strict checks; mandatory in NumPy 2.x) requires the v1
-    protocol -- an object exposing ``__dlpack__`` and ``__dlpack_device__``. This adapter is a
-    thin Python-side bridge so we don't have to touch the C++ DLPack export.
+    Quadrants' C++ ``field_to_dlpack`` / ``ndarray_to_dlpack`` return raw PyCapsules (the v0 DLPack protocol). Modern
+    NumPy (>= 1.23 with strict checks; mandatory in NumPy 2.x) requires the v1 protocol -- an object exposing
+    ``__dlpack__`` and ``__dlpack_device__``. This adapter is a thin Python-side bridge so we don't have to touch the
+    C++ DLPack export.
 
     CPU-only by construction; numpy zero-copy is gated on ``current_arch_is_cpu()`` upstream.
     """
@@ -149,13 +147,13 @@ class _ZerocopyCache:
     Holds two independent slots:
 
     * ``_tc``: ``torch.Tensor`` filled via ``torch.utils.dlpack.from_dlpack`` on first access.
-    * ``_np``: ``numpy.ndarray`` filled via ``numpy.from_dlpack`` on first access (CPU only).
-      Independent of torch: numpy-only workloads never trigger a torch import.
+    * ``_np``: ``numpy.ndarray`` filled via ``numpy.from_dlpack`` on first access (CPU only). Independent of torch:
+      numpy-only workloads never trigger a torch import.
 
     Each slot is filled lazily and may be ``None`` if not yet requested.
 
-    Lifetime: the cache is invalidated by :func:`PyQuadrants.reset` (via ``cache_holders``) BEFORE the
-    C++ program is torn down, so the DLPack deleters run while the underlying memory is still valid.
+    Lifetime: the cache is invalidated by :func:`PyQuadrants.reset` (via ``cache_holders``) BEFORE the C++ program is
+    torn down, so the DLPack deleters run while the underlying memory is still valid.
     """
 
     __slots__ = ("_tc", "_np")
@@ -193,9 +191,9 @@ def make_zerocopy_cache_if_supported(
 ) -> _ZerocopyCache | None:
     """Construct a ``_ZerocopyCache`` for ``owner`` if zero-copy is supported, else return ``None``.
 
-    Also registers ``owner`` with ``pyquadrants.cache_holders`` so its cache is invalidated on
-    ``qd.reset()`` / ``qd.init()`` BEFORE C++ teardown. The owner must define a method
-    ``_invalidate_zerocopy_cache(self)`` that calls :meth:`_ZerocopyCache.invalidate`.
+    Also registers ``owner`` with ``pyquadrants.cache_holders`` so its cache is invalidated on ``qd.reset()`` /
+    ``qd.init()`` BEFORE C++ teardown. The owner must define a method ``_invalidate_zerocopy_cache(self)`` that calls
+    :meth:`_ZerocopyCache.invalidate`.
 
     Intended to be called at instance construction (or once via ``cached_property``).
     """
@@ -239,19 +237,19 @@ def get_zerocopy_torch(
     path even when followed by a full clone.
 
     Args:
-        owner: A Field or Ndarray with a ``_zerocopy_cache: _ZerocopyCache | None`` attribute and a
-            ``to_dlpack()`` method.
+        owner: A Field or Ndarray with a ``_zerocopy_cache: _ZerocopyCache | None`` attribute and a ``to_dlpack()``
+            method.
         copy: ``None`` -> view; ``False`` -> view (raises if zerocopy unsupported); ``True`` -> clone.
-        device: Optional torch device. If different from the view's device, performs a device transfer
-            (incompatible with ``copy=False``).
+        device: Optional torch device. If different from the view's device, performs a device transfer (incompatible
+            with ``copy=False``).
 
     Returns:
         The torch tensor, or ``None`` when ``owner._zerocopy_cache is None`` (i.e. zero-copy is not supported for this
         instance) and ``copy is not False`` -- the caller should fall back to its kernel-copy path.
 
     Raises:
-        ValueError: when ``copy=False`` but zerocopy is unsupported for this instance, or when a
-            device transfer is required but ``copy=False``.
+        ValueError: when ``copy=False`` but zerocopy is unsupported for this instance, or when a device transfer is
+            required but ``copy=False``.
     """
     cache: _ZerocopyCache | None = owner._zerocopy_cache
     if cache is None:
@@ -291,19 +289,19 @@ def get_zerocopy_numpy(
     Uses ``numpy.from_dlpack`` directly -- no torch import required.
 
     Args:
-        owner: A Field or Ndarray with a ``_zerocopy_cache: _ZerocopyCache | None`` attribute and a
-            ``to_dlpack()`` method.
+        owner: A Field or Ndarray with a ``_zerocopy_cache: _ZerocopyCache | None`` attribute and a ``to_dlpack()``
+            method.
         copy: ``None`` -> view; ``False`` -> view (raises if zerocopy unsupported); ``True`` -> copy.
-        dtype_target: Optional numpy dtype. If different from the view's dtype, performs ``.astype()``
-            (incompatible with ``copy=False``).
+        dtype_target: Optional numpy dtype. If different from the view's dtype, performs ``.astype()`` (incompatible
+            with ``copy=False``).
 
     Returns:
-        The numpy array, or ``None`` when zerocopy is unsupported for this instance and
-        ``copy is not False`` -- the caller should fall back to its kernel-copy path.
+        The numpy array, or ``None`` when zerocopy is unsupported for this instance and ``copy is not False`` -- the
+        caller should fall back to its kernel-copy path.
 
     Raises:
-        ValueError: when ``copy=False`` but zerocopy is unsupported, or when a dtype conversion is
-            required but ``copy=False``.
+        ValueError: when ``copy=False`` but zerocopy is unsupported, or when a dtype conversion is required but
+            ``copy=False``.
     """
     cache: _ZerocopyCache | None = owner._zerocopy_cache
     if cache is None or not current_arch_is_cpu():

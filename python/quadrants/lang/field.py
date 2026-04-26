@@ -107,8 +107,8 @@ class Field:
     def _invalidate_zerocopy_cache(self) -> None:
         """Hook called by ``impl.reset()`` (via ``pyquadrants.cache_holders``) before C++ teardown.
 
-        Subclasses that support zero-copy define ``_zerocopy_cache`` as a ``cached_property``;
-        we read it via ``__dict__.get`` so invalidation never triggers the lazy init.
+        Subclasses that support zero-copy define ``_zerocopy_cache`` as a ``cached_property``; we read it via
+        ``__dict__.get`` so invalidation never triggers the lazy init.
         """
         cache = self.__dict__.get("_zerocopy_cache")
         if cache is not None:
@@ -255,10 +255,10 @@ class ScalarField(Field):
         Computed once per instance (see review feedback #17 on PR #450). Registers ``self`` in
         ``pyquadrants.cache_holders`` so the cache is invalidated on ``qd.reset()`` / ``qd.init()`` BEFORE C++ teardown.
         """
-        # A ScalarField that is a member of a multi-member StructField has AOS layout: its parent
-        # SNode (the struct cell) holds multiple `place` children, and consecutive elements of the
-        # same member are sizeof(cell) bytes apart. The C++ field_to_dlpack does not emit those
-        # strides yet, so zerocopy would produce an interleaved (broken) view. Skip it.
+        # A ScalarField that is a member of a multi-member StructField has AOS layout: its parent SNode (the struct
+        # cell) holds multiple `place` children, and consecutive elements of the same member are sizeof(cell) bytes
+        # apart. The C++ field_to_dlpack does not emit those strides yet, so zerocopy would produce an interleaved
+        # (broken) view. Skip it.
         parent_snode = self.parent()._snode.ptr
         is_aos_struct_member = parent_snode.get_num_ch() > 1
         return _interop.make_zerocopy_cache_if_supported(
@@ -327,10 +327,10 @@ class ScalarField(Field):
         """Converts this field to a `torch.tensor`.
 
         Args:
-            device: Optional torch device. Incompatible with ``copy=False`` if it differs from
-                the field's native device.
-            copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy,
-                ``False`` requires zero-copy or raises.
+            device: Optional torch device. Incompatible with ``copy=False`` if it differs from the field's native
+                device.
+            copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy, ``False`` requires
+                zero-copy or raises.
         """
         tc = _interop.get_zerocopy_torch(self, copy=copy, device=device)
         if tc is not None:
