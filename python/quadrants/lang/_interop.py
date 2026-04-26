@@ -105,14 +105,38 @@ def can_zerocopy(is_field: bool, dtype=None, is_scalar_field: bool = False, shap
     return True
 
 
+class _DLPackV1Adapter:
+    """Wraps a DLPack v0 PyCapsule into a v1-compatible object.
+
+    Quadrants' C++ ``field_to_dlpack`` / ``ndarray_to_dlpack`` return raw PyCapsules (the v0 DLPack
+    protocol). Modern NumPy (>= 1.23 with strict checks; mandatory in NumPy 2.x) requires the v1
+    protocol -- an object exposing ``__dlpack__`` and ``__dlpack_device__``. This adapter is a
+    thin Python-side bridge so we don't have to touch the C++ DLPack export.
+
+    CPU-only by construction; numpy zero-copy is gated on ``current_arch_is_cpu()`` upstream.
+    """
+
+    __slots__ = ("_capsule",)
+    _KDLCPU = 1  # DLDeviceType::kDLCPU
+
+    def __init__(self, capsule):
+        self._capsule = capsule
+
+    def __dlpack__(self, stream=None):
+        return self._capsule
+
+    def __dlpack_device__(self):
+        return (self._KDLCPU, 0)
+
+
 class _ZerocopyCache:
     """Per-instance cache of DLPack-backed views into a Quadrants Field / Ndarray.
 
     Holds two independent slots:
 
     * ``_tc``: ``torch.Tensor`` filled via ``torch.utils.dlpack.from_dlpack`` on first access.
-    * ``_np``: ``numpy.ndarray`` filled via ``numpy.from_dlpack`` on first access. Independent of torch:
-      numpy-only workloads never trigger a torch import.
+    * ``_np``: ``numpy.ndarray`` filled via ``numpy.from_dlpack`` on first access (CPU only).
+      Independent of torch: numpy-only workloads never trigger a torch import.
 
     Each slot is filled lazily and may be ``None`` if not yet requested.
 
@@ -135,7 +159,7 @@ class _ZerocopyCache:
 
     def _ensure_numpy(self, owner) -> np.ndarray:
         if self._np is None:
-            self._np = np.from_dlpack(owner.to_dlpack())
+            self._np = np.from_dlpack(_DLPackV1Adapter(owner.to_dlpack()))
         return self._np
 
     def invalidate(self) -> None:
