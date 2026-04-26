@@ -1215,9 +1215,8 @@ class MatrixField(Field):
     def _zerocopy_cache(self) -> _interop._ZerocopyCache | None:
         """Lazily-constructed DLPack cache. ``None`` when zero-copy is unsupported.
 
-        Constructed once per instance (closes review #17 on PR #450); registers ``self`` with
-        ``pyquadrants.cache_holders`` (closes review #18) so ``qd.reset()`` / ``qd.init()`` invalidate the cache BEFORE
-        C++ teardown.
+        Constructed once per instance (closes review #17); registers ``self`` with ``pyquadrants.cache_holders``
+        (closes review #18) so ``qd.reset()`` / ``qd.init()`` invalidate the cache BEFORE C++ teardown.
         """
         # Defensive: if this MatrixField is a member of a multi-member StructField, its representative SNode shares a
         # parent with sibling members and the C++ DLPack export produces broken AOS strides. See
