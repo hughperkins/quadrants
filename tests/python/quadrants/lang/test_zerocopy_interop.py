@@ -543,7 +543,7 @@ def test_struct_member_scalar_field_copy_false_raises():
     for i in range(4):
         s[i] = {"a": i * 100 + 1, "b": i * 100 + 2, "c": i * 100 + 3}
     qd.sync()
-    with pytest.raises(ValueError, match="copy=False"):
+    with pytest.raises(ValueError, match="Zero-copy not available"):
         s.a.to_torch(copy=False)
     tc_a = _to_cpu(s.a.to_torch(copy=True))
     assert tc_a[0] == 1
@@ -558,7 +558,7 @@ def test_struct_member_scalar_field_to_numpy_copy_false_raises():
     for i in range(4):
         s[i] = {"a": i * 10 + 0.1, "b": i * 10 + 0.2}
     qd.sync()
-    with pytest.raises(ValueError, match="copy=False"):
+    with pytest.raises(ValueError, match="Zero-copy not available"):
         s.a.to_numpy(copy=False)
 
 
@@ -572,7 +572,7 @@ def test_struct_member_vector_field_copy_false_raises():
     for i in range(3):
         s[i] = {"v": (i, i + 1, i + 2), "w": float(i)}
     qd.sync()
-    with pytest.raises(ValueError, match="copy=False"):
+    with pytest.raises(ValueError, match="Zero-copy not available"):
         s.v.to_torch(copy=False)
 
 
