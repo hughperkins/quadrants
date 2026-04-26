@@ -1,11 +1,12 @@
 # type: ignore
 
+from functools import cached_property
 from typing import TYPE_CHECKING, Union
 
 import numpy as np
 
 from quadrants._lib import core as _qd_core
-from quadrants.lang import _ndarray_pickle, impl
+from quadrants.lang import _interop, _ndarray_pickle, impl
 
 # Cache enum value at module level for fast lookup in hot paths
 _arch_metal = _qd_core.Arch.metal
@@ -66,26 +67,36 @@ class Ndarray:
             impl.get_runtime().sync()
         return impl.get_runtime().prog.ndarray_to_dlpack(self, self.arr)
 
+    @cached_property
+    def _zerocopy_cache(self) -> _interop._ZerocopyCache | None:
+        """Lazily-constructed DLPack cache. ``None`` when zero-copy is unsupported for this instance.
+
+        Computed once per instance (review feedback: avoid re-checking ``can_zerocopy`` per call).
+        Registers ``self`` with ``pyquadrants.cache_holders`` so the cache is invalidated on
+        ``qd.reset()`` / ``qd.init()`` BEFORE C++ teardown.
+        """
+        return _interop.make_zerocopy_cache_if_supported(self, is_field=False, dtype=self.dtype)
+
+    def _invalidate_zerocopy_cache(self) -> None:
+        """Hook called by ``impl.reset()`` (via ``pyquadrants.cache_holders``) before C++ teardown."""
+        cache = self.__dict__.get("_zerocopy_cache")
+        if cache is not None:
+            cache.invalidate()
+
     @python_scope
     def to_torch(self, *, copy=None):
-        """Converts this ndarray to a ``torch.Tensor`` via DLPack.
+        """Converts this ndarray to a ``torch.Tensor``.
 
-        Uses zero-copy when possible (all backends except Vulkan, and when the dtype is supported by DLPack).
+        Zero-copy via DLPack when supported for this backend/dtype, otherwise an independent
+        kernel-copied tensor.
 
         Args:
-            copy: ``None``/``False`` return a zero-copy view, ``True`` returns an independent copy.
+            copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy,
+                ``False`` requires zero-copy or raises.
         """
-        from quadrants.lang._interop import (  # pylint: disable=C0415
-            can_zerocopy,
-            dlpack_to_torch,
-        )
-
-        if copy is not True and can_zerocopy(is_field=False, dtype=self.dtype):
-            tc = dlpack_to_torch(self)
-            return tc.clone() if copy is True else tc
-
-        if copy is False:
-            raise ValueError("Zero-copy not available for this backend/dtype combination")
+        tc = _interop.get_zerocopy_torch(self, copy=copy)
+        if tc is not None:
+            return tc
 
         import torch  # pylint: disable=C0415
 
@@ -99,12 +110,10 @@ class Ndarray:
     def _reset(self):
         """
         Called by runtime, when we call qd.reset()
-        """
-        from quadrants.lang._interop import (  # pylint: disable=C0415
-            invalidate_zerocopy_cache,
-        )
 
-        invalidate_zerocopy_cache(self)
+        Note: cache invalidation is handled separately by ``pyquadrants.cache_holders`` BEFORE
+        the C++ program is torn down; this hook only nulls out the Python-side state.
+        """
         self.arr = None
         self.grad = None
         self.host_accessor = None
@@ -172,23 +181,19 @@ class Ndarray:
         """Converts ndarray to a numpy array.
 
         Args:
-            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` requires zero-copy via DLPack
-                (CPU backend + torch installed) or raises.  Note: zero-copy numpy arrays alias the ndarray's underlying
-                C++ runtime memory and become invalid after ``qd.reset()``.
+            copy: ``None`` (default) and ``True`` return an independent copy (numpy arrays are
+                conventionally expected to outlive their source). ``False`` returns a zero-copy
+                DLPack view (requires CPU backend and a supported dtype) or raises ``ValueError``.
 
         Returns:
             numpy.ndarray: The result numpy array.
         """
         if copy is False:
-            from quadrants.lang._interop import dlpack_to_torch  # pylint: disable=C0415
-
-            try:
-                tc = dlpack_to_torch(self)
-            except (ImportError, RuntimeError) as e:
-                raise ValueError("Zero-copy to numpy not available (requires CPU backend and torch)") from e
-            if tc.device.type != "cpu":
-                raise ValueError("Zero-copy to numpy not available (requires CPU backend and torch)")
-            return tc.numpy()
+            return _interop.get_zerocopy_numpy(self, copy=False)
+        # copy is None or True: try fast zerocopy+clone path, else kernel fallback.
+        arr = _interop.get_zerocopy_numpy(self, copy=True)
+        if arr is not None:
+            return arr
 
         arr = np.zeros(shape=self.arr.total_shape(), dtype=to_numpy_type(self.dtype))
         from quadrants._kernels import ndarray_to_ext_arr  # pylint: disable=C0415
@@ -203,23 +208,16 @@ class Ndarray:
 
         Args:
             as_vector: Whether to treat as a vector ndarray.
-            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` requires zero-copy via DLPack
-                (CPU backend + torch installed) or raises.  Note: zero-copy numpy arrays alias the ndarray's underlying
-                C++ runtime memory and become invalid after ``qd.reset()``.
+            copy: see :meth:`_ndarray_to_numpy`.
 
         Returns:
             numpy.ndarray: The result numpy array.
         """
         if copy is False:
-            from quadrants.lang._interop import dlpack_to_torch  # pylint: disable=C0415
-
-            try:
-                tc = dlpack_to_torch(self)
-            except (ImportError, RuntimeError) as e:
-                raise ValueError("Zero-copy to numpy not available (requires CPU backend and torch)") from e
-            if tc.device.type != "cpu":
-                raise ValueError("Zero-copy to numpy not available (requires CPU backend and torch)")
-            return tc.numpy()
+            return _interop.get_zerocopy_numpy(self, copy=False)
+        arr = _interop.get_zerocopy_numpy(self, copy=True)
+        if arr is not None:
+            return arr
 
         arr = np.zeros(shape=self.arr.total_shape(), dtype=to_numpy_type(self.dtype))
         from quadrants._kernels import (  # pylint: disable=C0415
