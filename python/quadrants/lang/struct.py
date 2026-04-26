@@ -552,11 +552,11 @@ class StructField(Field):
     def to_numpy(self, *, copy=None):
         """Converts the Struct field instance to a dictionary of NumPy arrays.
 
-        Struct fields use AOS cell layout, but Quadrants' C++ ``field_to_dlpack`` does not currently
-        emit cell-stride-aware DLPack views for individual members (it computes contiguous strides
-        at the member dtype size, which would interleave neighboring members' bytes). Until the C++
-        export is taught about AOS strides, ``StructField`` always returns independent copies; the
-        ``copy`` argument is accepted for API symmetry but ``copy=False`` is rejected.
+        Struct fields use AOS cell layout, but Quadrants' C++ ``field_to_dlpack`` does not currently emit
+        cell-stride-aware DLPack views for individual members (it computes contiguous strides at the member dtype size,
+        which would interleave neighboring members' bytes). Until the C++ export is taught about AOS strides,
+        ``StructField`` always returns independent copies; the ``copy`` argument is accepted for API symmetry but
+        ``copy=False`` is rejected.
 
         The dictionary may be nested when converting nested structs.
 

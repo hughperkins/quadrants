@@ -1385,8 +1385,8 @@ class MatrixField(Field):
             device (torch.device, optional): The desired device of returned tensor.
             keep_dims (bool, optional): Whether to keep the dimension after conversion.
                 See :meth:`~quadrants.lang.field.MatrixField.to_numpy` for more detailed explanation.
-            copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy,
-                ``False`` requires zero-copy or raises.
+            copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy, ``False`` requires
+                zero-copy or raises.
 
         Returns:
             torch.tensor: The result torch tensor.

@@ -288,8 +288,8 @@ class ScalarField(Field):
         """Converts this field to a `numpy.ndarray`.
 
         Args:
-            dtype: Optional target numpy dtype. Incompatible with ``copy=False`` if it differs
-                from the field's native dtype.
+            dtype: Optional target numpy dtype. Incompatible with ``copy=False`` if it differs from the field's native
+                dtype.
             copy: ``None`` (default) and ``True`` return an independent copy. ``False`` returns a zero-copy DLPack view
                 (requires CPU backend and a supported dtype) or raises ``ValueError``. Note: zero-copy numpy arrays
                 alias the field's underlying C++ runtime memory; callers opting into ``copy=False`` are responsible for

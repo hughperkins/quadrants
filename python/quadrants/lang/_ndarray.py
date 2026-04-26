@@ -110,8 +110,8 @@ class Ndarray:
         """
         Called by runtime, when we call qd.reset()
 
-        Note: cache invalidation is handled separately by ``pyquadrants.cache_holders`` BEFORE
-        the C++ program is torn down; this hook only nulls out the Python-side state.
+        Note: cache invalidation is handled separately by ``pyquadrants.cache_holders`` BEFORE the C++ program is torn
+        down; this hook only nulls out the Python-side state.
         """
         self.arr = None
         self.grad = None
@@ -180,9 +180,9 @@ class Ndarray:
         """Converts ndarray to a numpy array.
 
         Args:
-            copy: ``None`` (default) and ``True`` return an independent copy (numpy arrays are
-                conventionally expected to outlive their source). ``False`` returns a zero-copy
-                DLPack view (requires CPU backend and a supported dtype) or raises ``ValueError``.
+            copy: ``None`` (default) and ``True`` return an independent copy (numpy arrays are conventionally expected
+                to outlive their source). ``False`` returns a zero-copy DLPack view (requires CPU backend and a
+                supported dtype) or raises ``ValueError``.
 
         Returns:
             numpy.ndarray: The result numpy array.
