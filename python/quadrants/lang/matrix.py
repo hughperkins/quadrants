@@ -7,9 +7,11 @@ from itertools import product
 
 import numpy as np
 
+from functools import cached_property
+
 from quadrants._lib import core as qd_python_core
 from quadrants._lib.utils import qd_python_core as _qd_python_core
-from quadrants.lang import expr, impl, runtime_ops
+from quadrants.lang import _interop, expr, impl, runtime_ops
 from quadrants.lang import ops as ops_mod
 from quadrants.lang._ndarray import Ndarray, NdarrayHostAccess
 from quadrants.lang.common_ops import QuadrantsOperations
@@ -1210,6 +1212,26 @@ class MatrixField(Field):
         impl.get_runtime().materialize()
         return impl.get_runtime().prog.field_to_dlpack(self._snode.ptr, self.ndim, self.n, self.m)
 
+    @cached_property
+    def _zerocopy_cache(self) -> _interop._ZerocopyCache | None:
+        """Lazily-constructed DLPack cache. ``None`` when zero-copy is unsupported.
+
+        Constructed once per instance (closes review #17 on PR #450); registers ``self`` with
+        ``pyquadrants.cache_holders`` (closes review #18) so ``qd.reset()`` / ``qd.init()``
+        invalidate the cache BEFORE C++ teardown.
+        """
+        return _interop.make_zerocopy_cache_if_supported(self, is_field=True, dtype=self.dtype, shape=self.shape)
+
+    def _matrix_view_shape(self, keep_dims: bool) -> tuple[tuple[int, ...], bool]:
+        """Returns ``(expected_shape, as_vector)`` for ``to_torch`` / ``to_numpy``.
+
+        Keeps the n/m/keep_dims handling in one place rather than duplicating it in each
+        conversion method (closes review #13, #14).
+        """
+        as_vector = self.m == 1 and not keep_dims
+        shape_ext = (self.n,) if as_vector else (self.n, self.m)
+        return self.shape + shape_ext, as_vector
+
     def get_scalar_field(self, *indices):
         """Creates a ScalarField using a specific field member.
 
@@ -1312,44 +1334,35 @@ class MatrixField(Field):
                 When keep_dims=False, the resulting numpy array should skip the matrix dims with size 1.
                 For example, a 4x1 or 1x4 matrix field with 5x6x7 elements results in an array of shape 5x6x7x4.
             dtype (DataType, optional): The desired data type of returned numpy array.
-            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` requires zero-copy via DLPack
-                (CPU backend + torch installed) or raises.  Note: zero-copy numpy arrays alias the field's underlying
-                C++ runtime memory and become invalid after ``qd.reset()`` -- callers opting into ``copy=False`` are
-                responsible for the buffer lifetime.
+            copy: ``None`` (default) and ``True`` return an independent copy. ``False`` returns a
+                zero-copy DLPack view (requires CPU backend and a supported dtype) or raises
+                ``ValueError``. Note: zero-copy numpy arrays alias the field's underlying C++
+                runtime memory; callers opting into ``copy=False`` are responsible for the buffer
+                lifetime.
 
         Returns:
             numpy.ndarray: The result NumPy array.
         """
-        if copy is False:
-            from quadrants.lang._interop import (  # pylint: disable=C0415
-                can_zerocopy,
-                current_arch_is_cpu,
-                dlpack_to_torch,
-            )
+        expected, as_vector = self._matrix_view_shape(keep_dims)
+        np_dtype_target = None
+        if dtype is not None:
+            np_dtype_target = to_numpy_type(dtype) if isinstance(dtype, qd_python_core.DataTypeCxx) else dtype
 
-            if not can_zerocopy(is_field=True, dtype=self.dtype, shape=self.shape):
-                raise ValueError("Zero-copy not available for this backend/type combination")
-            if not current_arch_is_cpu():
-                raise ValueError("Zero-copy to numpy requires a CPU backend")
-            try:
-                tc = dlpack_to_torch(self)
-            except ImportError as e:
-                raise ValueError("Zero-copy to numpy requires torch to be installed") from e
-            as_vector = self.m == 1 and not keep_dims
-            shape_ext = (self.n,) if as_vector else (self.n, self.m)
-            expected = self.shape + shape_ext
-            np_arr = tc.numpy()
-            if np_arr.shape != expected:
-                np_arr = np_arr.reshape(expected)
-            if dtype is not None and np_arr.dtype != dtype:
-                raise ValueError("copy=False is incompatible with dtype conversion")
-            return np_arr
+        if copy is False:
+            arr = _interop.get_zerocopy_numpy(self, copy=False, dtype_target=np_dtype_target)
+            if arr.shape != expected:
+                arr = arr.reshape(expected)
+            return arr
+        # copy is None or True: try fast zerocopy+clone path, else kernel fallback.
+        arr = _interop.get_zerocopy_numpy(self, copy=True, dtype_target=np_dtype_target)
+        if arr is not None:
+            if arr.shape != expected:
+                arr = arr.reshape(expected)
+            return arr
 
         if dtype is None:
             dtype = to_numpy_type(self.dtype)
-        as_vector = self.m == 1 and not keep_dims
-        shape_ext = (self.n,) if as_vector else (self.n, self.m)
-        arr = np.zeros(self.shape + shape_ext, dtype=dtype)
+        arr = np.zeros(expected, dtype=dtype)
         from quadrants._kernels import matrix_to_ext_arr  # pylint: disable=C0415
 
         matrix_to_ext_arr(self, arr, as_vector)
@@ -1363,42 +1376,23 @@ class MatrixField(Field):
             device (torch.device, optional): The desired device of returned tensor.
             keep_dims (bool, optional): Whether to keep the dimension after conversion.
                 See :meth:`~quadrants.lang.field.MatrixField.to_numpy` for more detailed explanation.
-            copy: ``None`` (default) prefers zero-copy, ``True`` forces a copy, ``False`` requires zero-copy or raises.
+            copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy,
+                ``False`` requires zero-copy or raises.
 
         Returns:
             torch.tensor: The result torch tensor.
         """
-        from quadrants.lang._interop import (  # pylint: disable=C0415
-            can_zerocopy,
-            dlpack_to_torch,
-        )
-
-        if copy is not True and can_zerocopy(is_field=True, dtype=self.dtype, shape=self.shape):
-            import torch  # pylint: disable=C0415
-
-            tc = dlpack_to_torch(self)
-            as_vector = self.m == 1 and not keep_dims
-            shape_ext = (self.n,) if as_vector else (self.n, self.m)
-            expected = self.shape + shape_ext
+        expected, as_vector = self._matrix_view_shape(keep_dims)
+        tc = _interop.get_zerocopy_torch(self, copy=copy, device=device)
+        if tc is not None:
             if tc.shape != expected:
                 tc = tc.reshape(expected)
-            if device is not None and tc.device != torch.device(device):
-                if copy is False:
-                    raise ValueError(
-                        f"copy=False is incompatible with device transfer (data on {tc.device}, requested {device})"
-                    )
-                return tc.to(device)
             return tc
-
-        if copy is False:
-            raise ValueError("Zero-copy not available for this backend/type combination")
 
         import torch  # pylint: disable=C0415
 
-        as_vector = self.m == 1 and not keep_dims
-        shape_ext = (self.n,) if as_vector else (self.n, self.m)
         # pylint: disable=E1101
-        arr = torch.empty(self.shape + shape_ext, dtype=to_pytorch_type(self.dtype), device=device)
+        arr = torch.empty(expected, dtype=to_pytorch_type(self.dtype), device=device)
         from quadrants._kernels import matrix_to_ext_arr  # pylint: disable=C0415
 
         matrix_to_ext_arr(self, arr, as_vector)
