@@ -190,6 +190,89 @@ def test_matrix_field_to_torch_matches_copy():
 
 
 # ---------------------------------------------------------------------------
+# MatrixField (vec/mat).to_torch  --  copy=False zero-copy
+#
+# A vector / matrix field's components are stored as siblings under one parent
+# SNode (so ``parent.get_num_ch() > 1``), but ``field_to_dlpack`` exports them
+# with the correct shape and strides. ``copy=False`` MUST therefore succeed
+# and alias the field's memory.
+# ---------------------------------------------------------------------------
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_vector_field_to_torch_copy_false():
+    """``copy=False`` on a Vector.field must succeed and produce values matching the kernel-copy path."""
+    vec3 = qd.types.vector(3, qd.f32)
+    f = qd.field(vec3, shape=(4,))
+    for i in range(4):
+        f[i] = (i * 100 + 0, i * 100 + 1, i * 100 + 2)
+    qd.sync()
+    tc_zc = _to_cpu(f.to_torch(copy=False))
+    tc_cp = _to_cpu(f.to_torch(copy=True))
+    assert tuple(tc_zc.shape) == (4, 3)
+    assert torch.allclose(tc_zc, tc_cp)
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_matrix_field_to_torch_copy_false():
+    """``copy=False`` on a Matrix.field must succeed and produce values matching the kernel-copy path."""
+    mat = qd.types.matrix(2, 3, qd.f32)
+    f = qd.field(mat, shape=(4,))
+    f[0] = ((1, 2, 3), (4, 5, 6))
+    f[1] = ((7, 8, 9), (10, 11, 12))
+    qd.sync()
+    tc_zc = _to_cpu(f.to_torch(copy=False))
+    tc_cp = _to_cpu(f.to_torch(copy=True))
+    assert tuple(tc_zc.shape) == (4, 2, 3)
+    assert torch.allclose(tc_zc, tc_cp)
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_vector_field_to_torch_aliases_memory():
+    """Zero-copy tensor view of a Vector.field must reflect later kernel writes."""
+    if is_v520_amdgpu():
+        pytest.skip("can't run torch accessor kernels on v520")
+    vec3 = qd.types.vector(3, qd.f32)
+    f = qd.field(vec3, shape=(4,))
+    f[0] = (1.0, 2.0, 3.0)
+    qd.sync()
+    tc = f.to_torch(copy=False)
+
+    @qd.kernel
+    def write(f: qd.template()):
+        f[0] = qd.Vector([99.0, 88.0, 77.0])
+
+    write(f)
+    qd.sync()
+    tc_cpu = _to_cpu(tc)
+    assert tc_cpu[0, 0] == 99.0
+    assert tc_cpu[0, 1] == 88.0
+    assert tc_cpu[0, 2] == 77.0
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_matrix_field_to_torch_aliases_memory():
+    """Zero-copy tensor view of a Matrix.field must reflect later kernel writes."""
+    if is_v520_amdgpu():
+        pytest.skip("can't run torch accessor kernels on v520")
+    mat = qd.types.matrix(2, 2, qd.f32)
+    f = qd.field(mat, shape=(2,))
+    f[0] = ((1.0, 2.0), (3.0, 4.0))
+    qd.sync()
+    tc = f.to_torch(copy=False)
+
+    @qd.kernel
+    def write(f: qd.template()):
+        f[0] = qd.Matrix([[10.0, 20.0], [30.0, 40.0]])
+
+    write(f)
+    qd.sync()
+    tc_cpu = _to_cpu(tc)
+    assert tc_cpu[0, 0, 0] == 10.0
+    assert tc_cpu[0, 1, 1] == 40.0
+
+
+# ---------------------------------------------------------------------------
 # MatrixField.to_numpy  --  zero-copy (CPU only)
 # ---------------------------------------------------------------------------
 
@@ -214,6 +297,34 @@ def test_matrix_field_to_numpy_zerocopy_cpu():
     arr = f.to_numpy()
     assert arr.shape == (2, 2, 2)
     np.testing.assert_allclose(arr[0], [[1, 2], [3, 4]])
+
+
+@test_utils.test(arch=[qd.cpu])
+def test_vector_field_to_numpy_copy_false_cpu():
+    """``copy=False`` numpy view on a Vector.field (CPU) must succeed and match the copy path."""
+    vec3 = qd.types.vector(3, qd.f32)
+    f = qd.field(vec3, shape=(3,))
+    for i in range(3):
+        f[i] = (i * 10.0, i * 10.0 + 1, i * 10.0 + 2)
+    qd.sync()
+    arr_zc = f.to_numpy(copy=False)
+    arr_cp = f.to_numpy(copy=True)
+    assert arr_zc.shape == (3, 3)
+    np.testing.assert_allclose(arr_zc, arr_cp)
+
+
+@test_utils.test(arch=[qd.cpu])
+def test_matrix_field_to_numpy_copy_false_cpu():
+    """``copy=False`` numpy view on a Matrix.field (CPU) must succeed and match the copy path."""
+    mat = qd.types.matrix(2, 2, qd.f32)
+    f = qd.field(mat, shape=(2,))
+    f[0] = ((1, 2), (3, 4))
+    f[1] = ((5, 6), (7, 8))
+    qd.sync()
+    arr_zc = f.to_numpy(copy=False)
+    arr_cp = f.to_numpy(copy=True)
+    assert arr_zc.shape == (2, 2, 2)
+    np.testing.assert_allclose(arr_zc, arr_cp)
 
 
 # ---------------------------------------------------------------------------
@@ -420,6 +531,62 @@ def test_struct_field_copy_false_raises():
         s.to_numpy(copy=False)
     with pytest.raises(ValueError, match="StructField.to_torch.*copy=False"):
         s.to_torch(copy=False)
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_struct_member_scalar_field_copy_false_raises():
+    """A ScalarField that is a real member of a multi-member StructField has genuine AOS layout
+    (cell stride > member dtype size), and ``field_to_dlpack`` does not yet emit cell-aware strides.
+    ``copy=False`` must raise; ``copy=None``/``True`` must keep working via the kernel-copy path.
+    """
+    s = qd.Struct.field({"a": qd.f32, "b": qd.f32, "c": qd.f32}, shape=(4,))
+    for i in range(4):
+        s[i] = {"a": i * 100 + 1, "b": i * 100 + 2, "c": i * 100 + 3}
+    qd.sync()
+    with pytest.raises(ValueError, match="copy=False"):
+        s.a.to_torch(copy=False)
+    tc_a = _to_cpu(s.a.to_torch(copy=True))
+    assert tc_a[0] == 1
+    assert tc_a[1] == 101
+    assert tc_a[3] == 301
+
+
+@test_utils.test(arch=[qd.cpu])
+def test_struct_member_scalar_field_to_numpy_copy_false_raises():
+    """``copy=False`` numpy view of a multi-member StructField member must raise (real AOS strides)."""
+    s = qd.Struct.field({"a": qd.f32, "b": qd.f32}, shape=(4,))
+    for i in range(4):
+        s[i] = {"a": i * 10 + 0.1, "b": i * 10 + 0.2}
+    qd.sync()
+    with pytest.raises(ValueError, match="copy=False"):
+        s.a.to_numpy(copy=False)
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_struct_member_vector_field_copy_false_raises():
+    """A Vector.field that is a real member of a multi-member StructField is also genuinely AOS:
+    its representative SNode shares the struct cell with sibling members. ``copy=False`` must raise.
+    """
+    vec3 = qd.types.vector(3, qd.f32)
+    s = qd.Struct.field({"v": vec3, "w": qd.f32}, shape=(3,))
+    for i in range(3):
+        s[i] = {"v": (i, i + 1, i + 2), "w": float(i)}
+    qd.sync()
+    with pytest.raises(ValueError, match="copy=False"):
+        s.v.to_torch(copy=False)
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_single_member_struct_field_member_zerocopy_ok():
+    """Sanity: a ScalarField member of a *single*-member StructField is effectively SOA
+    (``parent.get_num_ch() == 1``); ``copy=False`` must succeed."""
+    s = qd.Struct.field({"a": qd.f32}, shape=(4,))
+    for i in range(4):
+        s[i] = {"a": float(i * 7)}
+    qd.sync()
+    tc = _to_cpu(s.a.to_torch(copy=False))
+    assert tc[0] == 0.0
+    assert tc[3] == 21.0
 
 
 # ---------------------------------------------------------------------------

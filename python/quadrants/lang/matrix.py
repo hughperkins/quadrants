@@ -1218,11 +1218,14 @@ class MatrixField(Field):
         Constructed once per instance (closes review #17); registers ``self`` with ``pyquadrants.cache_holders``
         (closes review #18) so ``qd.reset()`` / ``qd.init()`` invalidate the cache BEFORE C++ teardown.
         """
-        # Defensive: if this MatrixField is a member of a multi-member StructField, its representative SNode shares a
-        # parent with sibling members and the C++ DLPack export produces broken AOS strides. See
-        # ScalarField._zerocopy_cache for the full rationale.
+        # A MatrixField always lays its ``n*m`` scalar components as siblings under one parent SNode, so
+        # ``parent.get_num_ch() == n*m`` for a standalone vec/mat field and ``field_to_dlpack(snode, ndim, n, m)``
+        # emits correct strides. We only have a real AOS layout problem when this MatrixField is a member of a
+        # multi-member StructField: then sibling members of OTHER fields also live under the same parent SNode and
+        # ``get_num_ch() > n*m``, but the C++ DLPack export still uses the cell-internal stride. See
+        # ScalarField._zerocopy_cache for the scalar-field rationale.
         parent_snode = self.parent()._snode.ptr
-        is_aos_struct_member = parent_snode.get_num_ch() > 1
+        is_aos_struct_member = parent_snode.get_num_ch() > self.n * self.m
         return _interop.make_zerocopy_cache_if_supported(
             self,
             is_field=True,
