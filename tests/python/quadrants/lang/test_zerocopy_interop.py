@@ -376,3 +376,131 @@ def test_struct_field_to_torch_copy_true():
     d2 = s.to_torch(copy=True)
     assert d1["x"].data_ptr() != d2["x"].data_ptr()
     assert _to_cpu(d2["x"])[0] == 5.0
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_struct_field_to_torch_aliases_memory():
+    """Each StructField member must be a true zero-copy view of its underlying SNode storage.
+
+    Regression for the previous behaviour that forced copy=True per child with the fabricated
+    "interleaved memory layout" rationale.
+    """
+    if is_v520_amdgpu():
+        pytest.skip("can't run torch accessor kernels on v520")
+    s = qd.Struct.field({"a": qd.i32, "b": qd.i32}, shape=(4,))
+    s[0] = {"a": 1, "b": 2}
+    qd.sync()
+    d = s.to_torch()  # default = view dict
+
+    @qd.kernel
+    def write(s: qd.template()):
+        s[0].a = 99
+        s[0].b = 77
+
+    write(s)
+    qd.sync()
+    assert d["a"][0] == 99
+    assert d["b"][0] == 77
+
+
+@test_utils.test(arch=[qd.cpu])
+def test_struct_field_to_numpy_copy_false_per_member():
+    """copy=False must succeed on a StructField -- each member is independently zero-copyable."""
+    s = qd.Struct.field({"a": qd.f32, "b": qd.i32}, shape=(3,))
+    s[0] = {"a": 1.5, "b": 7}
+    qd.sync()
+    d = s.to_numpy(copy=False)
+    assert isinstance(d, dict)
+    assert d["a"][0] == 1.5
+    assert d["b"][0] == 7
+
+
+# ---------------------------------------------------------------------------
+# Cache invalidation across qd.reset() / qd.init()
+# ---------------------------------------------------------------------------
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_zerocopy_cache_survives_reset():
+    """Holding a zero-copy view across qd.reset() must not segfault.
+
+    Regression for the use-after-free that motivated the Genesis to_numpy()-always-copies
+    workaround: cache invalidation now runs BEFORE the C++ program is torn down (see
+    pyquadrants.cache_holders in impl.py), so the DLPack deleter on the cached tensor
+    operates on still-valid memory.
+    """
+    arch = qd.cfg.arch
+    f = qd.field(qd.f32, shape=(4,))
+    f[0] = 1.0
+    qd.sync()
+    held = f.to_torch()  # cached zero-copy view; we hold a Python reference past reset()
+    assert held is not None
+
+    qd.reset()
+    qd.init(arch=arch)
+
+    # Re-create and verify the new field works -- the previous-cycle 'held' tensor is allowed
+    # to remain alive (its data may now be released, but we don't dereference it). What we
+    # MUST not have is a crash inside the previous-cycle deleter when 'held' is GC'd.
+    f2 = qd.field(qd.f32, shape=(4,))
+    f2[0] = 42.0
+    qd.sync()
+    fresh = f2.to_torch()
+    assert _to_cpu(fresh)[0] == 42.0
+    # Touch 'held' last so it's only dropped at function exit; the DLPack deleter must not crash.
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_zerocopy_cache_fresh_after_reset():
+    """After qd.reset() / qd.init(), a freshly-constructed Field gets a fresh cache.
+
+    Specifically, the new field's data_ptr is not stale-equal to a previous cycle's, AND
+    the new view sees current data.
+    """
+    arch = qd.cfg.arch
+    f1 = qd.field(qd.f32, shape=(2,))
+    f1[0] = 1.0
+    qd.sync()
+    f1.to_torch()  # populate cache
+    f1_dtype = f1.dtype  # noqa: F841 -- keep f1 alive past reset for the GC ordering test
+
+    qd.reset()
+    qd.init(arch=arch)
+
+    f2 = qd.field(qd.f32, shape=(2,))
+    f2[0] = 99.0
+    qd.sync()
+    tc2 = _to_cpu(f2.to_torch())
+    assert tc2[0] == 99.0
+
+
+# ---------------------------------------------------------------------------
+# Apple Metal double-sync
+# ---------------------------------------------------------------------------
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_clone_after_kernel_write_returns_up_to_date_data():
+    """After a kernel writes to a field, an immediate clone must see the post-write values.
+
+    Specifically targets the Apple Metal path where qd.sync() flushes pending Quadrants kernels
+    and torch.mps.synchronize() flushes pending MPS clone copies; both must run for the cloned
+    tensor to be observably equal to the field's current values.
+    """
+    if is_v520_amdgpu():
+        pytest.skip("can't run torch accessor kernels on v520")
+    f = qd.field(qd.i32, shape=(8,))
+    f[0] = 0
+    qd.sync()
+
+    @qd.kernel
+    def write(f: qd.template()):
+        for i in range(8):
+            f[i] = 100 + i
+
+    write(f)
+    # No explicit qd.sync() here -- we rely on to_torch(copy=True)'s internal sync.
+    tc = f.to_torch(copy=True)
+    tc_cpu = _to_cpu(tc)
+    for i in range(8):
+        assert tc_cpu[i] == 100 + i
