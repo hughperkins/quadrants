@@ -256,8 +256,19 @@ class ScalarField(Field):
         ``pyquadrants.cache_holders`` so the cache is invalidated on ``qd.reset()`` / ``qd.init()``
         BEFORE C++ teardown.
         """
+        # A ScalarField that is a member of a multi-member StructField has AOS layout: its parent
+        # SNode (the struct cell) holds multiple `place` children, and consecutive elements of the
+        # same member are sizeof(cell) bytes apart. The C++ field_to_dlpack does not emit those
+        # strides yet, so zerocopy would produce an interleaved (broken) view. Skip it.
+        parent_snode = self.parent()._snode.ptr
+        is_aos_struct_member = parent_snode.get_num_ch() > 1
         return _interop.make_zerocopy_cache_if_supported(
-            self, is_field=True, dtype=self.dtype, is_scalar_field=True, shape=self.shape
+            self,
+            is_field=True,
+            dtype=self.dtype,
+            is_scalar_field=True,
+            shape=self.shape,
+            is_aos_struct_member=is_aos_struct_member,
         )
 
     def fill(self, val):

@@ -75,7 +75,13 @@ def current_arch_is_cpu() -> bool:
     return impl.current_cfg().arch in _ARCH_CPU
 
 
-def can_zerocopy(is_field: bool, dtype=None, is_scalar_field: bool = False, shape: tuple[int, ...] = ()) -> bool:
+def can_zerocopy(
+    is_field: bool,
+    dtype=None,
+    is_scalar_field: bool = False,
+    shape: tuple[int, ...] = (),
+    is_aos_struct_member: bool = False,
+) -> bool:
     """Check whether zero-copy DLPack export is available for the current backend and data type.
 
     This is intended to be called **once** at the source instance's construction (or first access)
@@ -87,6 +93,12 @@ def can_zerocopy(is_field: bool, dtype=None, is_scalar_field: bool = False, shap
             return False.
         is_scalar_field: ``True`` when the source is a ``ScalarField`` (0-dim DLPack edge-case).
         shape: Batch shape of the field/ndarray.
+        is_aos_struct_member: ``True`` when the field is a member of a multi-member ``StructField``.
+            Quadrants' C++ ``field_to_dlpack`` does not currently emit cell-stride-aware DLPack views
+            for AOS struct members (it computes contiguous strides at the member dtype size, but the
+            actual stride between consecutive elements of the same member is ``sizeof(cell)``), so the
+            zerocopy view would interleave neighboring members' bytes. Force kernel-copy until the
+            C++ export is fixed.
 
     Returns:
         ``True`` if zero-copy via DLPack is supported.
@@ -101,6 +113,8 @@ def can_zerocopy(is_field: bool, dtype=None, is_scalar_field: bool = False, shap
             return False
         # 0-dim ScalarFields lack DLPack bytes_offset support in current PyTorch.
         if is_scalar_field and not shape:
+            return False
+        if is_aos_struct_member:
             return False
     return True
 
@@ -175,6 +189,7 @@ def make_zerocopy_cache_if_supported(
     dtype,
     is_scalar_field: bool = False,
     shape: tuple[int, ...] = (),
+    is_aos_struct_member: bool = False,
 ) -> _ZerocopyCache | None:
     """Construct a ``_ZerocopyCache`` for ``owner`` if zero-copy is supported, else return ``None``.
 
@@ -184,7 +199,13 @@ def make_zerocopy_cache_if_supported(
 
     Intended to be called at instance construction (or once via ``cached_property``).
     """
-    if not can_zerocopy(is_field=is_field, dtype=dtype, is_scalar_field=is_scalar_field, shape=shape):
+    if not can_zerocopy(
+        is_field=is_field,
+        dtype=dtype,
+        is_scalar_field=is_scalar_field,
+        shape=shape,
+        is_aos_struct_member=is_aos_struct_member,
+    ):
         return None
     cache = _ZerocopyCache()
     impl.get_runtime().cache_holders.add(owner)

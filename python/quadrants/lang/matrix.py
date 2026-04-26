@@ -1219,7 +1219,18 @@ class MatrixField(Field):
         ``pyquadrants.cache_holders`` (closes review #18) so ``qd.reset()`` / ``qd.init()``
         invalidate the cache BEFORE C++ teardown.
         """
-        return _interop.make_zerocopy_cache_if_supported(self, is_field=True, dtype=self.dtype, shape=self.shape)
+        # Defensive: if this MatrixField is a member of a multi-member StructField, its
+        # representative SNode shares a parent with sibling members and the C++ DLPack export
+        # produces broken AOS strides. See ScalarField._zerocopy_cache for the full rationale.
+        parent_snode = self.parent()._snode.ptr
+        is_aos_struct_member = parent_snode.get_num_ch() > 1
+        return _interop.make_zerocopy_cache_if_supported(
+            self,
+            is_field=True,
+            dtype=self.dtype,
+            shape=self.shape,
+            is_aos_struct_member=is_aos_struct_member,
+        )
 
     def _matrix_view_shape(self, keep_dims: bool) -> tuple[tuple[int, ...], bool]:
         """Returns ``(expected_shape, as_vector)`` for ``to_torch`` / ``to_numpy``.
