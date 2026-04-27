@@ -527,9 +527,9 @@ def test_struct_field_copy_false_raises():
     s = qd.Struct.field({"a": qd.f32, "b": qd.i32}, shape=(3,))
     s[0] = {"a": 1.5, "b": 7}
     qd.sync()
-    with pytest.raises(ValueError, match="Zero-copy not available"):
+    with pytest.raises(ValueError, match="Zero-copy.*(not available|unavailable)"):
         s.to_numpy(copy=False)
-    with pytest.raises(ValueError, match="Zero-copy not available"):
+    with pytest.raises(ValueError, match="Zero-copy.*(not available|unavailable)"):
         s.to_torch(copy=False)
 
 
