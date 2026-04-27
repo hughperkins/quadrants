@@ -155,41 +155,47 @@ v3 = f2.to_torch(copy=False)            # fresh view; v1/v2 must not be used
 
 ### Axis layout with `layout=`
 
-`to_torch()` and `to_numpy()` accept a keyword `layout: str = "natural"` that selects the axis order of the returned view. The view is materialised by a single `movedim` from Quadrants' native layout and **cached per layout** alongside the natural view, so repeated calls in a hot loop reduce to one attribute lookup.
+`to_torch()` and `to_numpy()` accept a keyword `layout: tuple[int, ...] | None = None` that selects the axis order of the returned view. When set, `layout` is interpreted as an axis permutation in the same convention as `torch.movedim(src, dst)` / `numpy.moveaxis(src, dst)`: the i-th element of the tuple says which input axis ends up at output position `i`. The default `layout=None` returns the natural view (Quadrants' native order, batch axis last).
 
-| `layout=` | Result | When to use |
-|---|---|---|
-| `"natural"` (default) | Quadrants' native order (batch axis last). | Direct kernel-storage layout; matches `to_numpy` / `to_torch` historically. |
-| `"batch_first"` | Last axis moved to the front. | Frameworks (Genesis, JAX-style sims, RL libraries) that expect `(batch, ...)`. |
+The permuted view is materialised once via a single `movedim` (or `moveaxis`) from the natural-layout view and **cached per perm-tuple key** alongside the natural view, so repeated calls in a hot loop with the same `layout=` reduce to a tuple-equality check + cached-tensor return.
 
 ```python
 f = qd.field(qd.f32, shape=(7, 4096))   # 7 components, 4096 envs
 
-natural     = f.to_torch(copy=False)                              # shape (7, 4096)
-batch_first = f.to_torch(copy=False, layout="batch_first")        # shape (4096, 7)
+natural     = f.to_torch(copy=False)                            # shape (7, 4096)
+batch_first = f.to_torch(copy=False, layout=(1, 0))             # shape (4096, 7)
 
-assert natural.data_ptr() == batch_first.data_ptr()               # same underlying memory
+assert natural.data_ptr() == batch_first.data_ptr()             # same underlying memory
+```
+
+For an n-d field the "move last axis to front" perm common in batched simulations and RL is `(n - 1, *range(n - 1))`:
+
+```python
+f3d = qd.field(qd.f32, shape=(3, 7, 4096))
+n = len(f3d.shape)
+batch_first = f3d.to_torch(copy=False, layout=(n - 1, *range(n - 1)))   # (4096, 3, 7)
 ```
 
 Caching matters on CPU, where the Python-side `to_torch().movedim(...)` pattern is dispatch-heavy in a per-step loop:
 
 ```python
 # Hot loop -- prefer this:
+PERM = (n - 1, *range(n - 1))
 for _ in range(n_steps):
-    dst = f.to_torch(copy=False, layout="batch_first")       # cached, one attribute lookup
+    dst = f.to_torch(copy=False, layout=PERM)        # cached, one tuple-eq + return on the hit path
     ...
 
 # over the equivalent but slower:
 for _ in range(n_steps):
-    dst = f.to_torch(copy=False).movedim(-1, 0)              # fresh torch dispatch every step
+    dst = f.to_torch(copy=False).movedim(-1, 0)      # fresh torch dispatch every step
     ...
 ```
 
 `layout=` composes with `copy=True` (clones the cached layout view), `device=` (transfers the cached layout view), `keep_dims` (matrix fields only), and the lifetime / synchronisation rules described above.
 
-For 0-D and 1-D fields, every layout collapses to the same tensor.
+For 0-D and 1-D fields, every layout collapses to the same tensor (any 1-element perm is a no-op; for 1-D fields the only legal perm is `(0,)`).
 
-Only the named layouts are cached; the design keeps the cache size bounded and predictable. New named layouts can be added in future Quadrants releases without breaking call sites.
+Cache structure: each field holds a `dict[tuple[int, ...], Tensor]` of permuted views plus a single-slot cache for the most recently requested key. In typical hot loops a callsite always passes the same perm tuple, so the slot hits ~100 % of the time. The dict entries (and the slot) are cleared together with the natural-layout view on `qd.reset()` / `qd.init()`.
 
 ### Apple Metal: synchronisation
 
