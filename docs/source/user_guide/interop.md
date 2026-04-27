@@ -206,6 +206,22 @@ copy = f.to_torch(copy=True)        # qd.sync() + torch.mps.synchronize() run in
 
 `view.clone()`, called by you on a tensor you already hold, is a plain PyTorch op and does **not** go through Quadrants -- it neither calls `qd.sync()` nor `torch.mps.synchronize()`. If you need that, either go through `f.to_torch(copy=True)` (which does both internally) or call `torch.mps.synchronize()` yourself before / after the clone.
 
+The reverse direction (PyTorch writes to a zero-copy view, then a Quadrants kernel reads from the same field) is **not** automatically synchronised. Because Quadrants and PyTorch MPS submit work to separate Metal command queues, a kernel launched immediately after a torch write may execute before the torch write has actually committed to memory:
+
+```python
+qd.init(arch=qd.metal)
+f = qd.field(qd.f32, shape=(64,))
+
+view = f.to_torch(copy=False)
+view.zero_()                     # queued on the torch MPS stream
+my_kernel(f)                     # may run BEFORE view.zero_() commits!
+
+torch.mps.synchronize()          # required to flush the torch MPS stream first
+my_kernel(f)                     # now safe
+```
+
+This is intentional: forcing a sync on every Quadrants kernel that touches a previously-zerocopied field would be very expensive in workloads that batch many torch ops and many kernels back-to-back. If you mutate fields from torch and then read them from a Quadrants kernel on Metal, call `torch.mps.synchronize()` once between the torch ops and the kernels.
+
 ### Lifetime caveats
 
 A zero-copy view becomes invalid when the underlying Quadrants storage is freed. This happens on `qd.reset()` and `qd.init()`. Holding a `copy=False` tensor across either is undefined behaviour:
