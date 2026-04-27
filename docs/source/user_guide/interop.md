@@ -151,6 +151,37 @@ f2 = qd.field(qd.f32, shape=(1024,))
 v3 = f2.to_torch(copy=False)            # fresh view; v1/v2 must not be used
 ```
 
+### Transposed view (batch-leading) with `transpose=True`
+
+`to_torch()` and `to_numpy()` accept a keyword `transpose: bool = False` that returns the view with the *last* axis of the field's shape moved to the front. This matches the convention used by many simulation frameworks where the leading axis is the batch dimension, while the natural Quadrants layout puts the batch axis last.
+
+```python
+f = qd.field(qd.f32, shape=(7, 4096))   # 7 components, 4096 envs
+
+natural    = f.to_torch(copy=False)                    # shape (7, 4096)
+transposed = f.to_torch(copy=False, transpose=True)    # shape (4096, 7)
+
+assert natural.data_ptr() == transposed.data_ptr()     # same underlying memory
+```
+
+The transposed view is produced by a single `tensor.movedim(-1, 0)` and **also cached** alongside the natural view, so repeated calls (e.g. once per simulation step) reduce to a single attribute lookup. This matters on CPU where Python-side `to_torch().movedim(...)` per step is dispatch-heavy:
+
+```python
+# Hot loop -- prefer this:
+for _ in range(n_steps):
+    dst = f.to_torch(copy=False, transpose=True)       # cached, one attribute lookup
+    ...
+
+# over the equivalent but slower:
+for _ in range(n_steps):
+    dst = f.to_torch(copy=False).movedim(-1, 0)        # fresh torch dispatch every step
+    ...
+```
+
+`transpose=True` composes with `copy=True` (clones the cached transposed view), `device=` (transfers the cached transposed view), `keep_dims` (matrix fields only), and the lifetime / synchronisation rules described above.
+
+For 0-D and 1-D fields where there is nothing to transpose, `transpose=True` returns the same tensor as `transpose=False`.
+
 ### Apple Metal: synchronisation
 
 On Apple Metal, Quadrants and PyTorch MPS use separate Metal command queues. Quadrants kernel writes are made visible to the MPS-backed view via an automatic `qd.sync()` on every `to_torch()` / `to_numpy()` call. Cloning a view also synchronises MPS so that the clone sees the latest writes:
