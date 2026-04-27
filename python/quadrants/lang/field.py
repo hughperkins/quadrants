@@ -344,6 +344,21 @@ class ScalarField(Field):
                 output position i). The returned tensor is the natural-layout view permuted by ``layout`` and cached
                 per perm-key for hot-loop reuse. ``None`` (default) returns the natural layout.
         """
+        # Fast path: hit the cached ``_tc`` (natural-layout) or ``_last_layout_tc_view`` (permuted) slot before
+        # descending into ``_interop.get_zerocopy_torch``. Collapses 3-4 Python frames on slot hit; only kicks
+        # in on the zero-copy configuration. See ``MatrixField.to_torch`` for the rationale.
+        if (copy is None or copy is False) and device is None:
+            cache = self._zerocopy_cache
+            if cache is not None:
+                if layout is None:
+                    _tc = cache._tc
+                    if _tc is not None:
+                        return _tc
+                else:
+                    _view = cache._last_layout_tc_view
+                    if _view is not None and cache._last_layout_tc_key == (layout, None):
+                        return _view
+
         tc = _interop.get_zerocopy_torch(self, copy=copy, device=device, layout=layout)
         if tc is not None:
             return tc

@@ -1400,6 +1400,21 @@ class MatrixField(Field):
             torch.tensor: The result torch tensor.
         """
         expected, as_vector = self._matrix_view_shape(keep_dims)
+
+        # Fast path: hit the cached ``_last_layout_tc_view`` slot before descending into
+        # ``_interop.get_zerocopy_torch`` -> ``_ensure_layout_torch``. On slot hit this collapses 4 Python
+        # frames (``to_torch`` -> ``get_zerocopy_torch`` -> ``_ensure_layout_torch`` plus the inlined
+        # metal-sync check) down to 1, which materially helps hot-loop callers (franka_accessors-class
+        # workloads do ~43 ``to_torch`` calls per simulation step). Only kicks in on the zero-copy
+        # configuration (``copy in {None, False}``, ``device is None``, ``layout is not None``); slot-miss
+        # and any other configuration falls through to the full path unchanged.
+        if (copy is None or copy is False) and device is None and layout is not None:
+            cache = self._zerocopy_cache
+            if cache is not None:
+                _view = cache._last_layout_tc_view
+                if _view is not None and cache._last_layout_tc_key == (layout, expected):
+                    return _view
+
         tc = _interop.get_zerocopy_torch(
             self, copy=copy, device=device, layout=layout, target_shape=expected
         )
