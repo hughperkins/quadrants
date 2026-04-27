@@ -272,7 +272,10 @@ def get_zerocopy_torch(
     cache: _ZerocopyCache | None = owner._zerocopy_cache
     if cache is None:
         if copy is False:
-            raise ValueError("Zero-copy not available for this backend / dtype combination")
+            raise ValueError(
+                f"Zero-copy not available for arch={impl.current_cfg().arch.name}, "
+                f"dtype={getattr(owner, 'dtype', '?')}"
+            )
         return None
 
     _metal_sync_runtime()
@@ -324,7 +327,10 @@ def get_zerocopy_numpy(
     cache: _ZerocopyCache | None = owner._zerocopy_cache
     if cache is None or not current_arch_is_cpu():
         if copy is False:
-            raise ValueError("Zero-copy numpy unavailable (requires a CPU backend and a supported dtype)")
+            raise ValueError(
+                f"Zero-copy numpy unavailable for arch={impl.current_cfg().arch.name}, "
+                f"dtype={getattr(owner, 'dtype', '?')} (numpy zero-copy requires a CPU backend)"
+            )
         return None
 
     arr = cache._ensure_numpy(owner)
