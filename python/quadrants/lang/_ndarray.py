@@ -8,6 +8,14 @@ import numpy as np
 from quadrants._lib import core as _qd_core
 from quadrants.lang import _interop, _ndarray_pickle, impl
 
+# Optional torch: zero-copy paths and to_torch() require it, but importing _ndarray itself must not fail in torch-less
+# environments (e.g. Vulkan CI). Mirrors the guarded pattern in _interop. ``quadrants._kernels`` is intentionally NOT
+# hoisted: it imports back into ``quadrants.lang.*`` and would cause a circular import.
+try:
+    import torch as _torch
+except ImportError:
+    _torch = None  # type: ignore[assignment]
+
 # Cache enum value at module level for fast lookup in hot paths
 _arch_metal = _qd_core.Arch.metal
 
@@ -97,11 +105,11 @@ class Ndarray:
         if tc is not None:
             return tc
 
-        import torch  # pylint: disable=C0415
+        if _torch is None:
+            raise RuntimeError("torch is not installed; to_torch() requires either a zero-copy path or torch")
+        from quadrants._kernels import ndarray_to_ext_arr  # pylint: disable=C0415  # circular at module-level
 
-        arr = torch.zeros(size=self.arr.total_shape(), dtype=to_pytorch_type(self.dtype))
-        from quadrants._kernels import ndarray_to_ext_arr  # pylint: disable=C0415
-
+        arr = _torch.zeros(size=self.arr.total_shape(), dtype=to_pytorch_type(self.dtype))
         ndarray_to_ext_arr(self, arr)
         impl.get_runtime().sync()
         return arr
