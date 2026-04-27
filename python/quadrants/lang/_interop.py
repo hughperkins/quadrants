@@ -366,7 +366,12 @@ def get_zerocopy_torch(
             )
         return None
 
-    _metal_sync_runtime()
+    # Inlined ``_metal_sync_runtime()`` body. The wrapper-call frame shows up as ~0.3 us / call in cProfile on
+    # franka_accessors-class workloads (43 to_torch calls / step); inlining elides it on non-metal where the body is a
+    # no-op. Correctness across mid-process ``qd.init(arch=...)`` switches is preserved by ``_is_metal_arch`` keying its
+    # cache on ``id(impl.pyquadrants)``, which rotates on ``impl.reset()``.
+    if _is_metal_arch():
+        impl.get_runtime().sync()
 
     if layout is not None:
         tc = cache._ensure_layout_torch(owner, layout, target_shape)
@@ -382,12 +387,16 @@ def get_zerocopy_torch(
                 f"copy=False is incompatible with device transfer (data on {tc.device}, requested {device})"
             )
         out = tc.to(device)
-        _metal_sync_torch()
+        # Inlined ``_metal_sync_torch()`` body (``_HAS_TORCH`` is implied true: ``_ensure_*_torch`` above would have
+        # raised otherwise).
+        if _is_metal_arch():
+            _torch.mps.synchronize()
         return out
 
     if copy is True:
         out = tc.clone()
-        _metal_sync_torch()
+        if _is_metal_arch():
+            _torch.mps.synchronize()
         return out
     return tc
 
