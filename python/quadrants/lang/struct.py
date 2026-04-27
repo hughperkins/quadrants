@@ -552,48 +552,43 @@ class StructField(Field):
     def to_numpy(self, *, copy=None):
         """Converts the Struct field instance to a dictionary of NumPy arrays.
 
-        Struct fields use AOS cell layout, but Quadrants' C++ ``field_to_dlpack`` does not currently emit
-        cell-stride-aware DLPack views for individual members (it computes contiguous strides at the member dtype
-        size, which would interleave neighboring members' bytes). Until the C++ export is taught about AOS strides,
-        ``StructField`` always returns independent copies; the ``copy`` argument is accepted for API symmetry but
-        ``copy=False`` is rejected.
+        Delegates per-member, so zero-copy availability is determined by each member individually:
+
+        * **SOA layout** (``Struct.field(..., layout=Layout.SOA)``): each member has its own dense SNode subtree with
+          contiguous storage, so members are zero-copyable on supported backends/dtypes.
+        * **AOS layout** (default ``Layout.AOS``): all members share a parent cell SNode and elements of the same
+          member are ``sizeof(cell)`` bytes apart. Quadrants' C++ ``field_to_dlpack`` does not currently emit
+          cell-stride-aware DLPack views for AOS members, so the per-member zero-copy is disabled and each member
+          falls back to a kernel copy.
 
         The dictionary may be nested when converting nested structs.
 
         Args:
-            copy: must be ``None`` or ``True``; ``copy=False`` raises ``ValueError``.
+            copy: ``None`` (default) prefers zero-copy per member, ``True`` forces an independent buffer per member,
+                ``False`` requires zero-copy on every member (raises if any member is AOS).
 
         Returns:
             Dict[str, Union[numpy.ndarray, Dict]]: The result NumPy array.
         """
-        if copy is False:
-            raise ValueError(
-                "StructField.to_numpy(copy=False) is not supported: AOS member views require "
-                "cell-stride-aware DLPack export which the C++ runtime does not emit yet."
-            )
-        return {k: v.to_numpy(copy=True) for k, v in self._items}
+        return {k: v.to_numpy(copy=copy) for k, v in self._items}
 
     @python_scope
     def to_torch(self, device=None, *, copy=None):
         """Converts the Struct field instance to a dictionary of PyTorch tensors.
 
-        See :meth:`to_numpy` for why members are always returned as independent copies. ``copy=False`` is rejected.
+        Delegates per-member; see :meth:`to_numpy` for the SOA-vs-AOS zero-copy rules.
 
         The dictionary may be nested when converting nested structs.
 
         Args:
             device (torch.device, optional): The desired device of returned tensors.
-            copy: must be ``None`` or ``True``; ``copy=False`` raises ``ValueError``.
+            copy: ``None`` (default) prefers zero-copy per member, ``True`` forces an independent buffer per member,
+                ``False`` requires zero-copy on every member (raises if any member is AOS).
 
         Returns:
             Dict[str, Union[torch.Tensor, Dict]]: The result PyTorch tensor.
         """
-        if copy is False:
-            raise ValueError(
-                "StructField.to_torch(copy=False) is not supported: AOS member views require "
-                "cell-stride-aware DLPack export which the C++ runtime does not emit yet."
-            )
-        return {k: v.to_torch(device=device, copy=True) for k, v in self._items}
+        return {k: v.to_torch(device=device, copy=copy) for k, v in self._items}
 
     @python_scope
     def __setitem__(self, indices, element):

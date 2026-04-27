@@ -485,8 +485,8 @@ def test_struct_field_to_torch_copy_true():
     qd.sync()
     d1 = s.to_torch()
     d2 = s.to_torch(copy=True)
-    # StructField always copies (AOS member views are not zero-copyable yet -- see struct.py docstring),
-    # so both calls allocate independent storage.
+    # ``d1`` is a zero-copy view (single-member struct -> effectively SOA); ``d2`` is its clone.
+    # Their data_ptrs must therefore differ.
     assert d1["x"].data_ptr() != d2["x"].data_ptr()
     assert _to_cpu(d2["x"])[0] == 5.0
 
@@ -523,14 +523,49 @@ def test_struct_field_to_torch_does_not_alias_memory():
 
 @test_utils.test(arch=[qd.cpu])
 def test_struct_field_copy_false_raises():
-    """``copy=False`` is rejected for StructField (AOS member views not supported yet)."""
+    """``copy=False`` on a multi-member AOS StructField raises (per-member zero-copy unavailable)."""
     s = qd.Struct.field({"a": qd.f32, "b": qd.i32}, shape=(3,))
     s[0] = {"a": 1.5, "b": 7}
     qd.sync()
-    with pytest.raises(ValueError, match="StructField.to_numpy.*copy=False"):
+    with pytest.raises(ValueError, match="Zero-copy not available"):
         s.to_numpy(copy=False)
-    with pytest.raises(ValueError, match="StructField.to_torch.*copy=False"):
+    with pytest.raises(ValueError, match="Zero-copy not available"):
         s.to_torch(copy=False)
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_soa_struct_field_to_torch_copy_false_zerocopy():
+    """``copy=False`` succeeds on a multi-member SOA StructField: each member sits in its own dense SNode subtree,
+    so DLPack zero-copy is available per member.
+    """
+    s = qd.Struct.field({"a": qd.f32, "b": qd.f32}, shape=(4,), layout=qd.Layout.SOA)
+    for i in range(4):
+        s[i] = {"a": float(i), "b": float(i * 10)}
+    qd.sync()
+    d = s.to_torch(copy=False)
+    assert _to_cpu(d["a"])[3] == 3.0
+    assert _to_cpu(d["b"])[3] == 30.0
+
+    @qd.kernel
+    def write(s: qd.template()):
+        s[0].a = 99.0
+
+    write(s)
+    qd.sync()
+    # Zero-copy view must observe the kernel write.
+    assert _to_cpu(d["a"])[0] == 99.0
+
+
+@test_utils.test(arch=[qd.cpu])
+def test_soa_struct_field_to_numpy_copy_false_zerocopy():
+    """``copy=False`` succeeds on a multi-member SOA StructField for ``to_numpy`` on CPU."""
+    s = qd.Struct.field({"a": qd.f32, "b": qd.f32}, shape=(4,), layout=qd.Layout.SOA)
+    for i in range(4):
+        s[i] = {"a": float(i + 1), "b": float((i + 1) * 100)}
+    qd.sync()
+    d = s.to_numpy(copy=False)
+    assert d["a"][2] == 3.0
+    assert d["b"][2] == 300.0
 
 
 @test_utils.test(arch=dlpack_arch)
