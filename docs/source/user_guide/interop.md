@@ -193,18 +193,18 @@ Only the named layouts are cached; the design keeps the cache size bounded and p
 
 ### Apple Metal: synchronisation
 
-On Apple Metal, Quadrants and PyTorch MPS use separate Metal command queues. Quadrants kernel writes are made visible to the MPS-backed view via an automatic `qd.sync()` on every `to_torch()` / `to_numpy()` call. Cloning a view also synchronises MPS so that the clone sees the latest writes:
+On Apple Metal, Quadrants and PyTorch MPS use separate Metal command queues. Quadrants kernel writes are made visible to the MPS-backed view via an automatic `qd.sync()` on every `to_torch()` / `to_numpy()` call. When you ask Quadrants for an independent buffer with `copy=True`, Quadrants additionally calls `torch.mps.synchronize()` after cloning so the returned tensor reflects the latest device writes:
 
 ```python
 qd.init(arch=qd.metal)
 f = qd.field(qd.f32, shape=(64,))
 
-run_kernel(f)            # queues writes on the Quadrants Metal stream
-view = f.to_torch()      # qd.sync() runs internally; view sees the writes
-copy = view.clone()      # torch.mps.synchronize() runs internally; copy is up-to-date
+run_kernel(f)                       # queues writes on the Quadrants Metal stream
+view = f.to_torch()                 # qd.sync() runs internally; view sees the writes
+copy = f.to_torch(copy=True)        # qd.sync() + torch.mps.synchronize() run internally
 ```
 
-You do not need to call `qd.sync()` or `torch.mps.synchronize()` yourself when using `to_torch()` / `to_numpy()`.
+`view.clone()`, called by you on a tensor you already hold, is a plain PyTorch op and does **not** go through Quadrants -- it neither calls `qd.sync()` nor `torch.mps.synchronize()`. If you need that, either go through `f.to_torch(copy=True)` (which does both internally) or call `torch.mps.synchronize()` yourself before / after the clone.
 
 ### Lifetime caveats
 
