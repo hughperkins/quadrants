@@ -210,16 +210,34 @@ def make_zerocopy_cache_if_supported(
     return cache
 
 
+# Per-runtime cached result of ``impl.current_cfg().arch == _ARCH_METAL``. Looking this up via pybind11 (~1us per call)
+# on every ``to_torch`` / ``to_numpy`` invocation dominates per-call overhead on CPU-backed hot loops where the metal
+# sync is a no-op anyway. We cache the bool keyed on ``id(impl.pyquadrants)`` so the value is automatically refreshed
+# when ``impl.reset()`` swaps the runtime singleton (the only legitimate way the arch changes mid-process).
+_METAL_ARCH_CACHE: tuple[int, bool] | None = None
+
+
+def _is_metal_arch() -> bool:
+    global _METAL_ARCH_CACHE
+    rt_id = id(impl.pyquadrants)
+    cache = _METAL_ARCH_CACHE
+    if cache is not None and cache[0] == rt_id:
+        return cache[1]
+    is_metal = impl.current_cfg().arch == _ARCH_METAL
+    _METAL_ARCH_CACHE = (rt_id, is_metal)
+    return is_metal
+
+
 def _metal_sync_runtime() -> None:
     """Quadrants -> MPS sync. Required so the DLPack-backed MPS tensor sees pending kernel writes."""
-    if impl.current_cfg().arch == _ARCH_METAL:
+    if _is_metal_arch():
         impl.get_runtime().sync()
 
 
 def _metal_sync_torch() -> None:
     """MPS -> next operation sync. Required after ``.clone()`` / ``.to()`` so the resulting torch tensor
     has actually finished copying before the next user op (or the next Quadrants kernel) sees it."""
-    if _HAS_TORCH and impl.current_cfg().arch == _ARCH_METAL:
+    if _HAS_TORCH and _is_metal_arch():
         _torch.mps.synchronize()
 
 
