@@ -75,48 +75,6 @@ def current_arch_is_cpu() -> bool:
     return impl.current_cfg().arch in _ARCH_CPU
 
 
-def _zerocopy_unavailable_reason(
-    *,
-    is_field: bool,
-    dtype,
-    is_scalar_field: bool = False,
-    shape: tuple[int, ...] = (),
-    is_aos_struct_member: bool = False,
-) -> str | None:
-    """Return a human-readable reason DLPack zero-copy is unavailable, or ``None`` if it is available.
-
-    Centralises the predicate so error messages on ``copy=False`` rejections can pinpoint the actual blocker (which
-    dtype, which backend, AOS layout, etc.) rather than emit a generic "not available for this backend / dtype
-    combination".
-
-    See :func:`can_zerocopy` for the meaning of each argument.
-    """
-    if dtype is not None and dtype not in _DLPACK_SUPPORTED_DTYPES:
-        return (
-            f"dtype {dtype} is not in the DLPack zero-copy whitelist "
-            f"(supported: i32, i64, f32, f64, u1)"
-        )
-    arch = impl.current_cfg().arch
-    if arch == _ARCH_VULKAN:
-        return "the Vulkan backend does not export DLPack capsules"
-    if is_field:
-        if arch == _ARCH_METAL and not _TORCH_MPS_SUPPORTS_DLPACK_BYTES_OFFSET:
-            torch_version = _torch.__version__ if _HAS_TORCH else "<not installed>"
-            return (
-                f"field zero-copy on Apple Metal requires torch > 2.9.1 "
-                f"(see pytorch/pytorch#168193); current torch is {torch_version}"
-            )
-        if is_scalar_field and not shape:
-            return "0-dim ScalarFields lack DLPack bytes_offset support in the current PyTorch"
-        if is_aos_struct_member:
-            return (
-                "AOS struct member layout (Quadrants C++ field_to_dlpack does not currently emit "
-                "cell-stride-aware DLPack views for multi-member StructFields; use copy=True or omit "
-                "copy= to fall back to a kernel copy)"
-            )
-    return None
-
-
 def can_zerocopy(
     is_field: bool,
     dtype=None,
@@ -143,13 +101,20 @@ def can_zerocopy(
     Returns:
         ``True`` if zero-copy via DLPack is supported.
     """
-    return _zerocopy_unavailable_reason(
-        is_field=is_field,
-        dtype=dtype,
-        is_scalar_field=is_scalar_field,
-        shape=shape,
-        is_aos_struct_member=is_aos_struct_member,
-    ) is None
+    if dtype is not None and dtype not in _DLPACK_SUPPORTED_DTYPES:
+        return False
+    arch = impl.current_cfg().arch
+    if arch == _ARCH_VULKAN:
+        return False
+    if is_field:
+        if arch == _ARCH_METAL and not _TORCH_MPS_SUPPORTS_DLPACK_BYTES_OFFSET:
+            return False
+        # 0-dim ScalarFields lack DLPack bytes_offset support in current PyTorch.
+        if is_scalar_field and not shape:
+            return False
+        if is_aos_struct_member:
+            return False
+    return True
 
 
 class _DLPackV1Adapter:
@@ -231,19 +196,14 @@ def make_zerocopy_cache_if_supported(
     :meth:`_ZerocopyCache.invalidate`.
 
     Intended to be called at instance construction (or once via ``cached_property``).
-
-    When zero-copy is unavailable, the specific reason is stashed on ``owner._zerocopy_unavailable_reason`` so the
-    ``copy=False`` rejection error message can pinpoint the actual blocker.
     """
-    reason = _zerocopy_unavailable_reason(
+    if not can_zerocopy(
         is_field=is_field,
         dtype=dtype,
         is_scalar_field=is_scalar_field,
         shape=shape,
         is_aos_struct_member=is_aos_struct_member,
-    )
-    if reason is not None:
-        owner._zerocopy_unavailable_reason = reason
+    ):
         return None
     cache = _ZerocopyCache()
     impl.get_runtime().cache_holders.add(owner)
@@ -312,8 +272,7 @@ def get_zerocopy_torch(
     cache: _ZerocopyCache | None = owner._zerocopy_cache
     if cache is None:
         if copy is False:
-            reason = getattr(owner, "_zerocopy_unavailable_reason", "zero-copy is not supported for this instance")
-            raise ValueError(f"Zero-copy not available: {reason}")
+            raise ValueError("Zero-copy not available for this backend / dtype combination")
         return None
 
     _metal_sync_runtime()
@@ -365,17 +324,7 @@ def get_zerocopy_numpy(
     cache: _ZerocopyCache | None = owner._zerocopy_cache
     if cache is None or not current_arch_is_cpu():
         if copy is False:
-            if cache is None:
-                reason = getattr(
-                    owner, "_zerocopy_unavailable_reason", "zero-copy is not supported for this instance"
-                )
-            else:
-                arch_name = impl.current_cfg().arch.name
-                reason = (
-                    f"numpy zero-copy requires a CPU backend; the active backend is {arch_name} "
-                    f"(numpy arrays cannot reference {arch_name} memory)"
-                )
-            raise ValueError(f"Zero-copy not available: {reason}")
+            raise ValueError("Zero-copy numpy unavailable (requires a CPU backend and a supported dtype)")
         return None
 
     arr = cache._ensure_numpy(owner)
