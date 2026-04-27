@@ -107,7 +107,19 @@ class Ndarray:
 
         if _torch is None:
             raise RuntimeError("torch is not installed; to_torch() requires either a zero-copy path or torch")
-        from quadrants._kernels import ndarray_to_ext_arr  # pylint: disable=C0415  # circular at module-level
+        # FIXME: local import - hoisting to module top triggers a circular import (quadrants._kernels ->
+        # quadrants.lang.field -> quadrants.lang.matrix -> quadrants.lang._ndarray, which is mid-load and has not yet
+        # defined ``Ndarray``). Cleanest structural fix is "Option D": extract ``Ndarray`` and ``NdarrayHostAccess``
+        # into a leaf module ``quadrants.lang._ndarray_base`` with no quadrants-internal deps, and have ``matrix.py``
+        # inherit from there instead of from ``_ndarray``. ``_ndarray.py`` would then load ``_ndarray_base`` first,
+        # then load ``_kernels`` at module top (the chain ``_kernels`` -> ``field`` -> ``matrix`` -> ``_ndarray_base``
+        # resolves cleanly because ``_ndarray_base`` is already fully loaded). 5 other ``Ndarray`` methods would also
+        # benefit (``_ndarray_to_numpy``, ``_ndarray_matrix_to_numpy``, ``_ndarray_from_numpy``,
+        # ``_ndarray_matrix_from_numpy``, ``copy_from``), all currently using local kernels imports for the same
+        # reason. Deferred: ~210 ns/call savings on a kernel-copy fallback path that's already microseconds-per-call
+        # dominated, vs a multi-file refactor introducing a new "leaf-base module" pattern. Not worth it as a
+        # standalone change; revisit if/when other reasons drive a structural split.
+        from quadrants._kernels import ndarray_to_ext_arr  # pylint: disable=C0415
 
         arr = _torch.zeros(size=self.arr.total_shape(), dtype=to_pytorch_type(self.dtype))
         ndarray_to_ext_arr(self, arr)
