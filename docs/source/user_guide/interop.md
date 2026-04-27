@@ -92,7 +92,7 @@ Zero-copy uses [DLPack](https://github.com/dmlc/dlpack) and requires:
 - a DLPack-supported dtype: `i32`, `i64`, `f32`, `f64`, `u1` (other dtypes such as `f16`, `u8`, `u16` fall back to the kernel-copy path);
 - on Apple Metal, `torch >= 2.9.2` for fields (required for DLPack `bytes_offset` on MPS; see [pytorch/pytorch#168193](https://github.com/pytorch/pytorch/pull/168193));
 - 0-dim `ScalarField` instances are not zero-copyable on any backend (PyTorch DLPack `bytes_offset` limitation);
-- `StructField` members are not zero-copyable yet (see [Struct fields](#struct-fields) below); `copy=False` raises on `StructField`.
+- members of an AOS `StructField` (the default `Struct.field(..., layout=Layout.AOS)`) are not zero-copyable yet (see [Struct fields](#struct-fields) below); members of an SOA `StructField` (`layout=Layout.SOA`) **are** zero-copyable individually.
 
 Zero-copy `to_numpy()` additionally requires a CPU backend, because numpy arrays cannot reference GPU memory.
 
@@ -218,17 +218,21 @@ If you need a tensor that outlives the runtime, use `copy=True` (or the default 
 
 ### Struct fields
 
-`StructField.to_torch()` and `StructField.to_numpy()` return a dictionary mapping each member name to an **independent copy** of that member's data. Struct fields use AOS (array-of-structures) cell layout: a `Struct.field({"a": i32, "b": f32}, shape=(N,))` stores `[a0, b0, a1, b1, ...]` in memory, with stride `sizeof(cell)` between consecutive `a`'s. Quadrants' C++ DLPack export does not currently emit cell-stride-aware views for individual members (it computes contiguous strides at the member dtype size, which would interleave neighboring members' bytes), so member views are forced to be copies until that is fixed.
+`StructField.to_torch()` and `StructField.to_numpy()` return a dictionary mapping each member name to a tensor / array; the `copy` argument is propagated to each member, so zero-copy availability is decided per member. The relevant axis is the SNode layout chosen at construction:
+
+- **AOS** (default `Struct.field(..., layout=Layout.AOS)`): all members share the struct cell, e.g. `Struct.field({"a": i32, "b": f32}, shape=(N,))` stores `[a0, b0, a1, b1, ...]` in memory, with stride `sizeof(cell)` between consecutive `a`'s. Quadrants' C++ DLPack export does not currently emit cell-stride-aware views for individual members (it computes contiguous strides at the member dtype size, which would interleave neighbouring members' bytes), so AOS members fall back to a kernel copy and `copy=False` raises on each AOS member.
+- **SOA** (`Struct.field(..., layout=Layout.SOA)`): each member sits in its own dense SNode subtree with contiguous storage, so members are zero-copyable individually under the usual backend / dtype rules. `copy=False` succeeds and returns aliasing views.
 
 ```python
-S = qd.types.struct(pos=qd.f32, vel=qd.f32)
-sf = S.field(shape=(16,))
+S_aos = qd.Struct.field({"pos": qd.f32, "vel": qd.f32}, shape=(16,))   # AOS (default)
+d_aos = S_aos.to_torch()                                                # dict of kernel copies
+d_aos["pos"][0] = 1.0                                                   # does NOT write back
 
-dicts = sf.to_torch()           # dict of independent copies (always)
-dicts["pos"][0] = 1.0           # does NOT write through to sf.pos
+S_soa = qd.Struct.field({"pos": qd.f32, "vel": qd.f32}, shape=(16,),
+                        layout=qd.Layout.SOA)
+d_soa = S_soa.to_torch(copy=False)                                      # dict of zero-copy views
+d_soa["pos"][0] = 1.0                                                   # writes through to S_soa.pos
 ```
-
-`copy=False` is rejected with `ValueError`; `copy=None` and `copy=True` are accepted and both produce copies.
 
 ## Direct torch tensor pass-through
 
