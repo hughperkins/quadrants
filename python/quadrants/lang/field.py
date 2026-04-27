@@ -327,7 +327,8 @@ class ScalarField(Field):
         # TODO: can we remove .runtime_ops here?
         quadrants.lang.runtime_ops.sync()  # type: ignore
         if layout is not None:
-            arr = arr.transpose(layout)
+            full = layout if len(layout) == arr.ndim else layout + tuple(range(len(layout), arr.ndim))
+            arr = arr.transpose(full)
         return arr
 
     @python_scope
@@ -357,7 +358,8 @@ class ScalarField(Field):
         # TODO: can we remove .runtime_ops here?
         quadrants.lang.runtime_ops.sync()  # type: ignore
         if layout is not None:
-            arr = arr.permute(*layout)
+            full = layout if len(layout) == arr.ndim else layout + tuple(range(len(layout), arr.ndim))
+            arr = arr.permute(*full)
         return arr
 
     @python_scope

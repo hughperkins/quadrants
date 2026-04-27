@@ -218,7 +218,10 @@ class _ZerocopyCache:
         if view is None:
             natural = self._ensure_torch(owner)
             base = natural.reshape(target_shape) if target_shape is not None and natural.shape != target_shape else natural
-            view = base.permute(*layout)
+            # Pad layout with identity for trailing axes so callers can pass a permutation over the leading
+            # batch dims and let matrix / vector dims pass through (matches ``tensor.movedim(layout, range(...))``).
+            full_layout = layout if len(layout) == base.ndim else layout + tuple(range(len(layout), base.ndim))
+            view = base.permute(*full_layout)
             self._layout_tc[key] = view
         self._last_layout_tc_key = key
         self._last_layout_tc_view = view
@@ -238,7 +241,8 @@ class _ZerocopyCache:
         if view is None:
             natural = self._ensure_numpy(owner)
             base = natural.reshape(target_shape) if target_shape is not None and natural.shape != target_shape else natural
-            view = base.transpose(layout)
+            full_layout = layout if len(layout) == base.ndim else layout + tuple(range(len(layout), base.ndim))
+            view = base.transpose(full_layout)
             self._layout_np[key] = view
         self._last_layout_np_key = key
         self._last_layout_np_view = view

@@ -1380,7 +1380,8 @@ class MatrixField(Field):
         matrix_to_ext_arr(self, arr, as_vector)
         runtime_ops.sync()
         if layout is not None:
-            arr = arr.transpose(layout)
+            full = layout if len(layout) == arr.ndim else layout + tuple(range(len(layout), arr.ndim))
+            arr = arr.transpose(full)
         return arr
 
     def to_torch(self, device=None, keep_dims=False, *, copy=None, layout=None):
@@ -1414,7 +1415,8 @@ class MatrixField(Field):
         matrix_to_ext_arr(self, arr, as_vector)
         runtime_ops.sync()
         if layout is not None:
-            arr = arr.permute(*layout)
+            full = layout if len(layout) == arr.ndim else layout + tuple(range(len(layout), arr.ndim))
+            arr = arr.permute(*full)
         return arr
 
     @python_scope
