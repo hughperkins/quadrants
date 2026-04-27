@@ -151,36 +151,43 @@ f2 = qd.field(qd.f32, shape=(1024,))
 v3 = f2.to_torch(copy=False)            # fresh view; v1/v2 must not be used
 ```
 
-### Transposed view (batch-leading) with `transpose=True`
+### Axis layout with `layout=`
 
-`to_torch()` and `to_numpy()` accept a keyword `transpose: bool = False` that returns the view with the *last* axis of the field's shape moved to the front. This matches the convention used by many simulation frameworks where the leading axis is the batch dimension, while the natural Quadrants layout puts the batch axis last.
+`to_torch()` and `to_numpy()` accept a keyword `layout: str = "natural"` that selects the axis order of the returned view. The view is materialised by a single `movedim` from Quadrants' native layout and **cached per layout** alongside the natural view, so repeated calls in a hot loop reduce to one attribute lookup.
+
+| `layout=` | Result | When to use |
+|---|---|---|
+| `"natural"` (default) | Quadrants' native order (batch axis last). | Direct kernel-storage layout; matches `to_numpy` / `to_torch` historically. |
+| `"batch_first"` | Last axis moved to the front. | Frameworks (Genesis, JAX-style sims, RL libraries) that expect `(batch, ...)`. |
 
 ```python
 f = qd.field(qd.f32, shape=(7, 4096))   # 7 components, 4096 envs
 
-natural    = f.to_torch(copy=False)                    # shape (7, 4096)
-transposed = f.to_torch(copy=False, transpose=True)    # shape (4096, 7)
+natural     = f.to_torch(copy=False)                              # shape (7, 4096)
+batch_first = f.to_torch(copy=False, layout="batch_first")        # shape (4096, 7)
 
-assert natural.data_ptr() == transposed.data_ptr()     # same underlying memory
+assert natural.data_ptr() == batch_first.data_ptr()               # same underlying memory
 ```
 
-The transposed view is produced by a single `tensor.movedim(-1, 0)` and **also cached** alongside the natural view, so repeated calls (e.g. once per simulation step) reduce to a single attribute lookup. This matters on CPU where Python-side `to_torch().movedim(...)` per step is dispatch-heavy:
+Caching matters on CPU, where the Python-side `to_torch().movedim(...)` pattern is dispatch-heavy in a per-step loop:
 
 ```python
 # Hot loop -- prefer this:
 for _ in range(n_steps):
-    dst = f.to_torch(copy=False, transpose=True)       # cached, one attribute lookup
+    dst = f.to_torch(copy=False, layout="batch_first")       # cached, one attribute lookup
     ...
 
 # over the equivalent but slower:
 for _ in range(n_steps):
-    dst = f.to_torch(copy=False).movedim(-1, 0)        # fresh torch dispatch every step
+    dst = f.to_torch(copy=False).movedim(-1, 0)              # fresh torch dispatch every step
     ...
 ```
 
-`transpose=True` composes with `copy=True` (clones the cached transposed view), `device=` (transfers the cached transposed view), `keep_dims` (matrix fields only), and the lifetime / synchronisation rules described above.
+`layout=` composes with `copy=True` (clones the cached layout view), `device=` (transfers the cached layout view), `keep_dims` (matrix fields only), and the lifetime / synchronisation rules described above.
 
-For 0-D and 1-D fields where there is nothing to transpose, `transpose=True` returns the same tensor as `transpose=False`.
+For 0-D and 1-D fields, every layout collapses to the same tensor.
+
+Only the named layouts are cached; the design keeps the cache size bounded and predictable. New named layouts can be added in future Quadrants releases without breaking call sites.
 
 ### Apple Metal: synchronisation
 
