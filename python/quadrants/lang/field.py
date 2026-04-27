@@ -287,7 +287,7 @@ class ScalarField(Field):
             field_fill_quadrants_scope(self, val)
 
     @python_scope
-    def to_numpy(self, dtype=None, *, copy=None):
+    def to_numpy(self, dtype=None, *, copy=None, layout=None):
         """Converts this field to a `numpy.ndarray`.
 
         Args:
@@ -297,6 +297,9 @@ class ScalarField(Field):
                 (requires CPU backend and a supported dtype) or raises ``ValueError``. Note: zero-copy numpy arrays
                 alias the field's underlying C++ runtime memory; callers opting into ``copy=False`` are responsible for
                 the buffer lifetime.
+            layout: Optional axis permutation tuple in ``np.transpose`` semantics (i-th element is the input axis at
+                output position i). The returned array is the natural-layout view permuted by ``layout`` and cached
+                per perm-key. ``None`` (default) returns the natural layout.
         """
         if self.parent()._snode.ptr.type == _qd_core.SNodeType.dynamic:
             warn(
@@ -307,9 +310,9 @@ class ScalarField(Field):
             np_dtype_target = to_numpy_type(dtype) if isinstance(dtype, _qd_core.DataTypeCxx) else dtype
 
         if copy is False:
-            return _interop.get_zerocopy_numpy(self, copy=False, dtype_target=np_dtype_target)
+            return _interop.get_zerocopy_numpy(self, copy=False, dtype_target=np_dtype_target, layout=layout)
         # copy is None or True: try fast zerocopy+clone path, else kernel fallback.
-        arr = _interop.get_zerocopy_numpy(self, copy=True, dtype_target=np_dtype_target)
+        arr = _interop.get_zerocopy_numpy(self, copy=True, dtype_target=np_dtype_target, layout=layout)
         if arr is not None:
             return arr
 
@@ -323,10 +326,12 @@ class ScalarField(Field):
         tensor_to_ext_arr(self, arr)
         # TODO: can we remove .runtime_ops here?
         quadrants.lang.runtime_ops.sync()  # type: ignore
+        if layout is not None:
+            arr = arr.transpose(layout)
         return arr
 
     @python_scope
-    def to_torch(self, device=None, *, copy=None):
+    def to_torch(self, device=None, *, copy=None, layout=None):
         """Converts this field to a `torch.tensor`.
 
         Args:
@@ -334,8 +339,11 @@ class ScalarField(Field):
                 device.
             copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy, ``False`` requires
                 zero-copy or raises.
+            layout: Optional axis permutation tuple in ``tensor.permute`` semantics (i-th element is the input axis at
+                output position i). The returned tensor is the natural-layout view permuted by ``layout`` and cached
+                per perm-key for hot-loop reuse. ``None`` (default) returns the natural layout.
         """
-        tc = _interop.get_zerocopy_torch(self, copy=copy, device=device)
+        tc = _interop.get_zerocopy_torch(self, copy=copy, device=device, layout=layout)
         if tc is not None:
             return tc
 
@@ -348,6 +356,8 @@ class ScalarField(Field):
         tensor_to_ext_arr(self, arr)
         # TODO: can we remove .runtime_ops here?
         quadrants.lang.runtime_ops.sync()  # type: ignore
+        if layout is not None:
+            arr = arr.permute(*layout)
         return arr
 
     @python_scope

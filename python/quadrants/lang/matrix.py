@@ -1337,7 +1337,7 @@ class MatrixField(Field):
             field_fill_quadrants_scope(self, val)
 
     @python_scope
-    def to_numpy(self, keep_dims=False, dtype=None, *, copy=None):
+    def to_numpy(self, keep_dims=False, dtype=None, *, copy=None, layout=None):
         """Converts the field instance to a NumPy array.
 
         Args:
@@ -1350,6 +1350,8 @@ class MatrixField(Field):
                 (requires CPU backend and a supported dtype) or raises ``ValueError``. Note: zero-copy numpy arrays
                 alias the field's underlying C++ runtime memory; callers opting into ``copy=False`` are responsible for
                 the buffer lifetime.
+            layout: Optional axis permutation tuple in ``np.transpose`` semantics applied AFTER the keep_dims-resolved
+                shape. Cached per ``(layout, expected_shape)``.
 
         Returns:
             numpy.ndarray: The result NumPy array.
@@ -1360,15 +1362,14 @@ class MatrixField(Field):
             np_dtype_target = to_numpy_type(dtype) if isinstance(dtype, qd_python_core.DataTypeCxx) else dtype
 
         if copy is False:
-            arr = _interop.get_zerocopy_numpy(self, copy=False, dtype_target=np_dtype_target)
-            if arr.shape != expected:
-                arr = arr.reshape(expected)
-            return arr
+            return _interop.get_zerocopy_numpy(
+                self, copy=False, dtype_target=np_dtype_target, layout=layout, target_shape=expected
+            )
         # copy is None or True: try fast zerocopy+clone path, else kernel fallback.
-        arr = _interop.get_zerocopy_numpy(self, copy=True, dtype_target=np_dtype_target)
+        arr = _interop.get_zerocopy_numpy(
+            self, copy=True, dtype_target=np_dtype_target, layout=layout, target_shape=expected
+        )
         if arr is not None:
-            if arr.shape != expected:
-                arr = arr.reshape(expected)
             return arr
 
         if dtype is None:
@@ -1378,9 +1379,11 @@ class MatrixField(Field):
 
         matrix_to_ext_arr(self, arr, as_vector)
         runtime_ops.sync()
+        if layout is not None:
+            arr = arr.transpose(layout)
         return arr
 
-    def to_torch(self, device=None, keep_dims=False, *, copy=None):
+    def to_torch(self, device=None, keep_dims=False, *, copy=None, layout=None):
         """Converts the field instance to a PyTorch tensor.
 
         Args:
@@ -1389,15 +1392,17 @@ class MatrixField(Field):
                 See :meth:`~quadrants.lang.field.MatrixField.to_numpy` for more detailed explanation.
             copy: ``None`` (default) prefers zero-copy, ``True`` forces an independent copy, ``False`` requires
                 zero-copy or raises.
+            layout: Optional axis permutation tuple in ``tensor.permute`` semantics applied AFTER the keep_dims-resolved
+                shape. Cached per ``(layout, expected_shape)`` for hot-loop reuse.
 
         Returns:
             torch.tensor: The result torch tensor.
         """
         expected, as_vector = self._matrix_view_shape(keep_dims)
-        tc = _interop.get_zerocopy_torch(self, copy=copy, device=device)
+        tc = _interop.get_zerocopy_torch(
+            self, copy=copy, device=device, layout=layout, target_shape=expected
+        )
         if tc is not None:
-            if tc.shape != expected:
-                tc = tc.reshape(expected)
             return tc
 
         import torch  # pylint: disable=C0415
@@ -1408,6 +1413,8 @@ class MatrixField(Field):
 
         matrix_to_ext_arr(self, arr, as_vector)
         runtime_ops.sync()
+        if layout is not None:
+            arr = arr.permute(*layout)
         return arr
 
     @python_scope

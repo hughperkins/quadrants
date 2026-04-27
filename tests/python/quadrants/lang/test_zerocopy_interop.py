@@ -625,6 +625,155 @@ def test_single_member_struct_field_member_zerocopy_ok():
 
 
 # ---------------------------------------------------------------------------
+# layout=tuple[int, ...]: permuted-view caching
+# ---------------------------------------------------------------------------
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_scalar_field_to_torch_layout_basic():
+    """``layout=(1, 0)`` swaps the two axes of a 2-D field."""
+    f = qd.field(qd.f32, shape=(7, 4))
+    for i in range(7):
+        for j in range(4):
+            f[i, j] = i * 100 + j
+    qd.sync()
+
+    natural = f.to_torch(copy=False)
+    assert tuple(natural.shape) == (7, 4)
+
+    permuted = f.to_torch(copy=False, layout=(1, 0))
+    assert tuple(permuted.shape) == (4, 7)
+    np.testing.assert_allclose(_to_cpu(permuted).numpy(), _to_cpu(natural).numpy().T)
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_scalar_field_to_torch_layout_caching():
+    """Repeated calls with the same layout return the same cached tensor (last-call slot)."""
+    f = qd.field(qd.f32, shape=(7, 4))
+    qd.sync()
+    perm = (1, 0)
+    a = f.to_torch(copy=False, layout=perm)
+    b = f.to_torch(copy=False, layout=perm)
+    assert a is b
+    # Different layout -> different cache entry; tuple equality, not object identity, is what the cache keys on.
+    c = f.to_torch(copy=False, layout=tuple([1, 0]))
+    assert c is a
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_scalar_field_to_torch_layout_aliases_natural():
+    """Permuted view shares storage with the natural view."""
+    f = qd.field(qd.f32, shape=(7, 4))
+    qd.sync()
+    natural = f.to_torch(copy=False)
+    permuted = f.to_torch(copy=False, layout=(1, 0))
+    assert natural.data_ptr() == permuted.data_ptr()
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_scalar_field_to_torch_layout_kernel_writes_visible():
+    """Kernel writes after grabbing the layout view are visible through it."""
+    if is_v520_amdgpu():
+        pytest.skip("can't run torch accessor kernels on v520")
+    f = qd.field(qd.f32, shape=(3, 5))
+    qd.sync()
+    permuted = f.to_torch(copy=False, layout=(1, 0))   # shape (5, 3)
+
+    @qd.kernel
+    def write(f: qd.template()):
+        for i, j in qd.ndrange(3, 5):
+            f[i, j] = qd.f32(i * 10 + j)
+
+    write(f)
+    qd.sync()
+    p = _to_cpu(permuted)
+    for i in range(3):
+        for j in range(5):
+            assert p[j, i] == i * 10 + j
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_scalar_field_to_torch_layout_copy_true_clones():
+    """``copy=True`` with a layout returns an independent buffer."""
+    f = qd.field(qd.f32, shape=(7, 4))
+    qd.sync()
+    perm = (1, 0)
+    view = f.to_torch(copy=False, layout=perm)
+    clone = f.to_torch(copy=True, layout=perm)
+    assert view.data_ptr() != clone.data_ptr()
+    assert tuple(clone.shape) == (4, 7)
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_scalar_field_to_torch_layout_two_perms_separate_cache():
+    """Two distinct layouts on the same field produce distinct cached views, both still valid."""
+    f = qd.field(qd.f32, shape=(2, 3, 4))
+    qd.sync()
+    a = f.to_torch(copy=False, layout=(2, 0, 1))   # (4, 2, 3)
+    b = f.to_torch(copy=False, layout=(1, 2, 0))   # (3, 4, 2)
+    assert tuple(a.shape) == (4, 2, 3)
+    assert tuple(b.shape) == (3, 4, 2)
+    a2 = f.to_torch(copy=False, layout=(2, 0, 1))
+    b2 = f.to_torch(copy=False, layout=(1, 2, 0))
+    assert a is a2
+    assert b is b2
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_vector_field_to_torch_layout():
+    """MatrixField with layout permutes the keep_dims-resolved expected shape."""
+    vec3 = qd.types.vector(3, qd.f32)
+    f = qd.field(vec3, shape=(5,))
+    qd.sync()
+    natural = f.to_torch(copy=False)              # (5, 3)
+    permuted = f.to_torch(copy=False, layout=(1, 0))   # (3, 5)
+    assert tuple(natural.shape) == (5, 3)
+    assert tuple(permuted.shape) == (3, 5)
+    np.testing.assert_allclose(_to_cpu(permuted).numpy(), _to_cpu(natural).numpy().T)
+
+
+@test_utils.test(arch=[qd.cpu])
+def test_scalar_field_to_numpy_layout():
+    """``layout=`` works for ``to_numpy()`` too, with ``np.transpose`` semantics."""
+    f = qd.field(qd.f32, shape=(7, 4))
+    for i in range(7):
+        for j in range(4):
+            f[i, j] = i * 100 + j
+    qd.sync()
+    natural = f.to_numpy(copy=False)
+    permuted = f.to_numpy(copy=False, layout=(1, 0))
+    assert permuted.shape == (4, 7)
+    np.testing.assert_allclose(permuted, natural.T)
+
+
+@test_utils.test(arch=[qd.cpu])
+def test_scalar_field_to_numpy_layout_caching():
+    """Numpy layout view is cached and slot-hit on repeated calls."""
+    f = qd.field(qd.f32, shape=(7, 4))
+    qd.sync()
+    a = f.to_numpy(copy=False, layout=(1, 0))
+    b = f.to_numpy(copy=False, layout=(1, 0))
+    assert a is b
+
+
+@test_utils.test(arch=dlpack_arch)
+def test_zerocopy_layout_cache_invalidated_on_reset():
+    """``qd.reset()`` clears the layout cache too (alongside ``_tc`` / ``_np``)."""
+    arch = qd.cfg.arch
+    f = qd.field(qd.f32, shape=(2, 3))
+    qd.sync()
+    f.to_torch(copy=False, layout=(1, 0))
+    assert f._zerocopy_cache._layout_tc            # populated
+    qd.reset()
+    qd.init(arch=arch)
+    f2 = qd.field(qd.f32, shape=(2, 3))
+    qd.sync()
+    # Pre-condition: a fresh field's layout cache is empty.
+    assert f2._zerocopy_cache._layout_tc == {}
+    assert f2._zerocopy_cache._last_layout_tc_key is None
+
+
+# ---------------------------------------------------------------------------
 # Cache invalidation across qd.reset() / qd.init()
 # ---------------------------------------------------------------------------
 

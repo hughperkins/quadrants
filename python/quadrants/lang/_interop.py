@@ -144,23 +144,48 @@ class _DLPackV1Adapter:
 class _ZerocopyCache:
     """Per-instance cache of DLPack-backed views into a Quadrants Field / Ndarray.
 
-    Holds two independent slots:
+    Holds two independent natural-layout slots:
 
     * ``_tc``: ``torch.Tensor`` filled via ``torch.utils.dlpack.from_dlpack`` on first access.
     * ``_np``: ``numpy.ndarray`` filled via ``numpy.from_dlpack`` on first access (CPU only). Independent of torch:
       numpy-only workloads never trigger a torch import.
 
-    Each slot is filled lazily and may be ``None`` if not yet requested.
+    Plus per-layout caches, keyed on ``(layout_perm_tuple, target_shape)``:
+
+    * ``_layout_tc`` / ``_layout_np``: dicts of permuted views. The build function does
+      ``natural.reshape(target_shape).permute(*layout)`` once on miss and caches the result; subsequent calls return
+      the cached tensor directly.
+    * ``_last_layout_*_key`` / ``_last_layout_*_view``: a single-slot fast path that bypasses the dict on the common
+      case where a callsite repeatedly asks for the same ``(layout, target_shape)``. One tuple-equality check + a
+      cached return on the hit path (~30-50 ns), no dict hashing.
+
+    All slots are filled lazily and may be ``None`` if not yet requested.
 
     Lifetime: the cache is invalidated by :func:`PyQuadrants.reset` (via ``cache_holders``) BEFORE the C++ program is
-    torn down, so the DLPack deleters run while the underlying memory is still valid.
+    torn down, so the DLPack deleters run while the underlying memory is still valid. Layout views share storage with
+    ``_tc`` / ``_np`` so they're invalidated together.
     """
 
-    __slots__ = ("_tc", "_np")
+    __slots__ = (
+        "_tc",
+        "_np",
+        "_layout_tc",
+        "_layout_np",
+        "_last_layout_tc_key",
+        "_last_layout_tc_view",
+        "_last_layout_np_key",
+        "_last_layout_np_view",
+    )
 
     def __init__(self):
         self._tc = None
         self._np = None
+        self._layout_tc: dict = {}
+        self._layout_np: dict = {}
+        self._last_layout_tc_key: tuple | None = None
+        self._last_layout_tc_view = None
+        self._last_layout_np_key: tuple | None = None
+        self._last_layout_np_view = None
 
     def _ensure_torch(self, owner) -> "_torch_mod.Tensor":
         if not _HAS_TORCH:
@@ -174,10 +199,61 @@ class _ZerocopyCache:
             self._np = np.from_dlpack(_DLPackV1Adapter(owner.to_dlpack()))
         return self._np
 
+    def _ensure_layout_torch(
+        self,
+        owner,
+        layout: tuple[int, ...],
+        target_shape: tuple[int, ...] | None,
+    ) -> "_torch_mod.Tensor":
+        """Return a layout-permuted (and optionally reshaped) torch view, cached.
+
+        ``layout`` follows ``tensor.permute`` semantics: the i-th element is the input axis that ends up at output
+        position i. ``target_shape``, when not ``None``, is applied as a ``.reshape(...)`` of the natural ``_tc`` view
+        BEFORE the permute (this is how :class:`MatrixField` flattens / unflattens matrix dims into the batch shape).
+        """
+        key = (layout, target_shape)
+        if key == self._last_layout_tc_key:
+            return self._last_layout_tc_view
+        view = self._layout_tc.get(key)
+        if view is None:
+            natural = self._ensure_torch(owner)
+            base = natural.reshape(target_shape) if target_shape is not None and natural.shape != target_shape else natural
+            view = base.permute(*layout)
+            self._layout_tc[key] = view
+        self._last_layout_tc_key = key
+        self._last_layout_tc_view = view
+        return view
+
+    def _ensure_layout_numpy(
+        self,
+        owner,
+        layout: tuple[int, ...],
+        target_shape: tuple[int, ...] | None,
+    ) -> np.ndarray:
+        """Return a layout-permuted (and optionally reshaped) numpy view, cached. See ``_ensure_layout_torch``."""
+        key = (layout, target_shape)
+        if key == self._last_layout_np_key:
+            return self._last_layout_np_view
+        view = self._layout_np.get(key)
+        if view is None:
+            natural = self._ensure_numpy(owner)
+            base = natural.reshape(target_shape) if target_shape is not None and natural.shape != target_shape else natural
+            view = base.transpose(layout)
+            self._layout_np[key] = view
+        self._last_layout_np_key = key
+        self._last_layout_np_view = view
+        return view
+
     def invalidate(self) -> None:
-        """Drop both cached views. Idempotent."""
+        """Drop all cached views. Idempotent."""
         self._tc = None
         self._np = None
+        self._layout_tc.clear()
+        self._layout_np.clear()
+        self._last_layout_tc_key = None
+        self._last_layout_tc_view = None
+        self._last_layout_np_key = None
+        self._last_layout_np_view = None
 
 
 def make_zerocopy_cache_if_supported(
@@ -246,13 +322,15 @@ def get_zerocopy_torch(
     *,
     copy: bool | None,
     device=None,
+    layout: tuple[int, ...] | None = None,
+    target_shape: tuple[int, ...] | None = None,
 ) -> "_torch_mod.Tensor | None":
     """Zero-copy entry point for ``to_torch``.
 
-    Returns the cached zero-copy view, optionally cloned and / or moved to ``device``. The ``copy`` argument selects
-    between view (``False`` / ``None``) and independent buffer (``True``); crucially, the zerocopy export is taken
-    **even when ``copy=True``** and the result is then cloned -- DLPack export is cheaper than the kernel-copy fallback
-    path even when followed by a full clone.
+    Returns the cached zero-copy view, optionally reshaped, permuted, cloned, and / or moved to ``device``. The
+    ``copy`` argument selects between view (``False`` / ``None``) and independent buffer (``True``); crucially, the
+    zerocopy export is taken **even when ``copy=True``** and the result is then cloned -- DLPack export is cheaper
+    than the kernel-copy fallback path even when followed by a full clone.
 
     Args:
         owner: A Field or Ndarray with a ``_zerocopy_cache: _ZerocopyCache | None`` attribute and a ``to_dlpack()``
@@ -260,6 +338,12 @@ def get_zerocopy_torch(
         copy: ``None`` -> view; ``False`` -> view (raises if zerocopy unsupported); ``True`` -> clone.
         device: Optional torch device. If different from the view's device, performs a device transfer (incompatible
             with ``copy=False``).
+        layout: Optional axis permutation tuple in ``tensor.permute`` semantics (i-th element is the input axis at
+            output position i). When set, the returned view is the natural-layout view permuted by ``layout`` and
+            cached separately for repeated calls.
+        target_shape: Optional reshape applied to the natural-layout view before permuting / returning. Used by
+            :class:`MatrixField` to flatten matrix dims into the batch shape. The cache keys layout views on
+            ``(layout, target_shape)``, so different shapes get different cache slots.
 
     Returns:
         The torch tensor, or ``None`` when ``owner._zerocopy_cache is None`` (i.e. zero-copy is not supported for this
@@ -279,7 +363,13 @@ def get_zerocopy_torch(
         return None
 
     _metal_sync_runtime()
-    tc = cache._ensure_torch(owner)
+
+    if layout is not None:
+        tc = cache._ensure_layout_torch(owner, layout, target_shape)
+    else:
+        tc = cache._ensure_torch(owner)
+        if target_shape is not None and tc.shape != target_shape:
+            tc = tc.reshape(target_shape)
 
     needs_device_transfer = device is not None and tc.device != _torch.device(device)
     if needs_device_transfer:
@@ -303,6 +393,8 @@ def get_zerocopy_numpy(
     *,
     copy: bool | None,
     dtype_target=None,
+    layout: tuple[int, ...] | None = None,
+    target_shape: tuple[int, ...] | None = None,
 ) -> np.ndarray | None:
     """Zero-copy entry point for ``to_numpy``.
 
@@ -315,6 +407,10 @@ def get_zerocopy_numpy(
         copy: ``None`` -> view; ``False`` -> view (raises if zerocopy unsupported); ``True`` -> copy.
         dtype_target: Optional numpy dtype. If different from the view's dtype, performs ``.astype()`` (incompatible
             with ``copy=False``).
+        layout: Optional axis permutation tuple in ``np.transpose`` semantics (i-th element is the input axis at
+            output position i). Cached per ``(layout, target_shape)``.
+        target_shape: Optional reshape applied to the natural-layout array before permuting / returning. See
+            :func:`get_zerocopy_torch`.
 
     Returns:
         The numpy array, or ``None`` when zerocopy is unsupported for this instance and ``copy is not False`` -- the
@@ -333,7 +429,12 @@ def get_zerocopy_numpy(
             )
         return None
 
-    arr = cache._ensure_numpy(owner)
+    if layout is not None:
+        arr = cache._ensure_layout_numpy(owner, layout, target_shape)
+    else:
+        arr = cache._ensure_numpy(owner)
+        if target_shape is not None and arr.shape != target_shape:
+            arr = arr.reshape(target_shape)
 
     if dtype_target is not None and arr.dtype != dtype_target:
         if copy is False:
