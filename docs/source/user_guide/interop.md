@@ -88,7 +88,7 @@ Modifications via the view are visible to subsequent Quadrants kernel reads, and
 
 Zero-copy uses [DLPack](https://github.com/dmlc/dlpack) and requires:
 
-- a backend with DLPack support: `cpu` (`x64`/`arm64`), `cuda`, `amdgpu`, or `metal` (Vulkan is not supported);
+- a backend with DLPack support: `cpu` (`x64`/`arm64`), `cuda`, `amdgpu`, or `metal`. Vulkan is not supported because Vulkan-backed DLPack tensors cannot be consumed by any of the scientific computing libraries Quadrants interops with (torch, numpy, etc.), so the use case is currently irrelevant;
 - a DLPack-supported dtype: `i32`, `i64`, `f32`, `f64`, `u1` (other dtypes such as `f16`, `u8`, `u16` fall back to the kernel-copy path);
 - on Apple Metal, `torch >= 2.9.2` for fields (required for DLPack `bytes_offset` on MPS; see [pytorch/pytorch#168193](https://github.com/pytorch/pytorch/pull/168193));
 - 0-dim `ScalarField` instances are not zero-copyable on any backend (PyTorch DLPack `bytes_offset` limitation);
