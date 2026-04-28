@@ -286,7 +286,6 @@ class ScalarField(Field):
 
             field_fill_quadrants_scope(self, val)
 
-    @python_scope
     def to_numpy(self, dtype=None, *, copy=None, layout=None):
         """Converts this field to a `numpy.ndarray`.
 
@@ -301,6 +300,29 @@ class ScalarField(Field):
                 output position i). The returned array is the natural-layout view permuted by ``layout`` and cached
                 per perm-key. ``None`` (default) returns the natural layout.
         """
+        # Slot-hit fast path for explicit zero-copy (``copy=False``) -- placed BEFORE the ``@python_scope``
+        # assertion (which lives on ``_to_numpy_slow`` below) to drop ~540 ns of decorator overhead per call.
+        # Only fires for ``copy=False`` because ``copy=None`` is documented to return an independent copy
+        # (asymmetric with ``to_torch`` semantics; see docstring above).
+        if copy is False and dtype is None:
+            cache = self._zerocopy_cache
+            if cache is not None:
+                if layout is None:
+                    _np = cache._np
+                    if _np is not None:
+                        return _np
+                else:
+                    if (
+                        cache._last_layout_np_view is not None
+                        and (layout is cache._last_layout_np_layout or layout == cache._last_layout_np_layout)
+                        and cache._last_layout_np_target_shape is None
+                    ):
+                        return cache._last_layout_np_view
+        return self._to_numpy_slow(dtype=dtype, copy=copy, layout=layout)
+
+    @python_scope
+    def _to_numpy_slow(self, dtype=None, *, copy=None, layout=None):
+        """Slow-path body of :meth:`to_numpy`."""
         if self.parent()._snode.ptr.type == _qd_core.SNodeType.dynamic:
             warn(
                 "You are trying to convert a dynamic snode to a numpy array, be aware that inactive items in the snode will be converted to zeros in the resulting array."
@@ -331,7 +353,6 @@ class ScalarField(Field):
             arr = arr.transpose(full)
         return arr
 
-    @python_scope
     def to_torch(self, device=None, *, copy=None, layout=None):
         """Converts this field to a `torch.tensor`.
 
@@ -344,9 +365,12 @@ class ScalarField(Field):
                 output position i). The returned tensor is the natural-layout view permuted by ``layout`` and cached
                 per perm-key for hot-loop reuse. ``None`` (default) returns the natural layout.
         """
-        # Fast path: hit the cached ``_tc`` (natural-layout) or ``_last_layout_tc_view`` (permuted) slot before
-        # descending into ``_interop.get_zerocopy_torch``. Collapses 3-4 Python frames on slot hit; only kicks
-        # in on the zero-copy configuration. See ``MatrixField.to_torch`` for the rationale.
+        # Slot-hit fast path -- intentionally placed BEFORE the ``@python_scope`` assertion (which lives on
+        # ``_to_torch_slow`` below), to drop ~540 ns of decorator overhead per call on the cache-hit path.
+        # The Quadrants-scope assertion still fires on cache miss / first call. Misuse from inside a
+        # ``@quadrants.kernel`` body is caught the first time, after which the IR-generation context would be
+        # signalled by the next op anyway. Rationale: hot-loop callers (franka_accessors-class workloads) hit
+        # this path 30-50 times per simulation step; the assertion is redundant on every call.
         if (copy is None or copy is False) and device is None:
             cache = self._zerocopy_cache
             if cache is not None:
@@ -355,10 +379,18 @@ class ScalarField(Field):
                     if _tc is not None:
                         return _tc
                 else:
-                    _view = cache._last_layout_tc_view
-                    if _view is not None and cache._last_layout_tc_key == (layout, None):
-                        return _view
+                    # Identity comparison on split slot key. See ``_ZerocopyCache._ensure_layout_torch``.
+                    if (
+                        cache._last_layout_tc_view is not None
+                        and (layout is cache._last_layout_tc_layout or layout == cache._last_layout_tc_layout)
+                        and cache._last_layout_tc_target_shape is None
+                    ):
+                        return cache._last_layout_tc_view
+        return self._to_torch_slow(device=device, copy=copy, layout=layout)
 
+    @python_scope
+    def _to_torch_slow(self, device=None, *, copy=None, layout=None):
+        """Slow-path body of :meth:`to_torch` -- runs the python_scope assertion + DLPack chain + kernel fallback."""
         tc = _interop.get_zerocopy_torch(self, copy=copy, device=device, layout=layout)
         if tc is not None:
             return tc

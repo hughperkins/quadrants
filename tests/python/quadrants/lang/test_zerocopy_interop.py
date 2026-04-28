@@ -770,7 +770,9 @@ def test_zerocopy_layout_cache_invalidated_on_reset():
     qd.sync()
     # Pre-condition: a fresh field's layout cache is empty.
     assert f2._zerocopy_cache._layout_tc == {}
-    assert f2._zerocopy_cache._last_layout_tc_key is None
+    assert f2._zerocopy_cache._last_layout_tc_layout is None
+    assert f2._zerocopy_cache._last_layout_tc_target_shape is None
+    assert f2._zerocopy_cache._last_layout_tc_view is None
 
 
 # ---------------------------------------------------------------------------

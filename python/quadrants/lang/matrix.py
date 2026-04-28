@@ -1336,7 +1336,6 @@ class MatrixField(Field):
 
             field_fill_quadrants_scope(self, val)
 
-    @python_scope
     def to_numpy(self, keep_dims=False, dtype=None, *, copy=None, layout=None):
         """Converts the field instance to a NumPy array.
 
@@ -1356,6 +1355,27 @@ class MatrixField(Field):
         Returns:
             numpy.ndarray: The result NumPy array.
         """
+        # Slot-hit fast path for explicit zero-copy. See ``ScalarField.to_numpy`` for the rationale.
+        if copy is False and dtype is None:
+            cache = self._zerocopy_cache
+            if cache is not None:
+                expected, _ = self._matrix_view_shape(keep_dims)
+                if layout is None:
+                    _np = cache._np
+                    if _np is not None and (_np.shape == expected or expected is None):
+                        return _np
+                else:
+                    if (
+                        cache._last_layout_np_view is not None
+                        and (layout is cache._last_layout_np_layout or layout == cache._last_layout_np_layout)
+                        and (expected is cache._last_layout_np_target_shape or expected == cache._last_layout_np_target_shape)
+                    ):
+                        return cache._last_layout_np_view
+        return self._to_numpy_slow(keep_dims=keep_dims, dtype=dtype, copy=copy, layout=layout)
+
+    @python_scope
+    def _to_numpy_slow(self, keep_dims=False, dtype=None, *, copy=None, layout=None):
+        """Slow-path body of :meth:`to_numpy`."""
         expected, as_vector = self._matrix_view_shape(keep_dims)
         np_dtype_target = None
         if dtype is not None:
@@ -1399,21 +1419,26 @@ class MatrixField(Field):
         Returns:
             torch.tensor: The result torch tensor.
         """
-        expected, as_vector = self._matrix_view_shape(keep_dims)
-
-        # Fast path: hit the cached ``_last_layout_tc_view`` slot before descending into
-        # ``_interop.get_zerocopy_torch`` -> ``_ensure_layout_torch``. On slot hit this collapses 4 Python
-        # frames (``to_torch`` -> ``get_zerocopy_torch`` -> ``_ensure_layout_torch`` plus the inlined
-        # metal-sync check) down to 1, which materially helps hot-loop callers (franka_accessors-class
-        # workloads do ~43 ``to_torch`` calls per simulation step). Only kicks in on the zero-copy
-        # configuration (``copy in {None, False}``, ``device is None``, ``layout is not None``); slot-miss
-        # and any other configuration falls through to the full path unchanged.
+        # Slot-hit fast path -- placed BEFORE the ``@python_scope``-decorated slow path (which lives on
+        # ``_to_torch_slow`` below), to drop ~540 ns of decorator overhead per call. See
+        # ``ScalarField.to_torch`` for the rationale on assertion-on-fast-path. Identity comparison on the
+        # split slot key avoids the per-call ``(layout, expected)`` tuple allocation.
         if (copy is None or copy is False) and device is None and layout is not None:
             cache = self._zerocopy_cache
             if cache is not None:
-                _view = cache._last_layout_tc_view
-                if _view is not None and cache._last_layout_tc_key == (layout, expected):
-                    return _view
+                expected, _ = self._matrix_view_shape(keep_dims)
+                if (
+                    cache._last_layout_tc_view is not None
+                    and (layout is cache._last_layout_tc_layout or layout == cache._last_layout_tc_layout)
+                    and (expected is cache._last_layout_tc_target_shape or expected == cache._last_layout_tc_target_shape)
+                ):
+                    return cache._last_layout_tc_view
+        return self._to_torch_slow(device=device, keep_dims=keep_dims, copy=copy, layout=layout)
+
+    @python_scope
+    def _to_torch_slow(self, device=None, keep_dims=False, *, copy=None, layout=None):
+        """Slow-path body of :meth:`to_torch`."""
+        expected, as_vector = self._matrix_view_shape(keep_dims)
 
         tc = _interop.get_zerocopy_torch(
             self, copy=copy, device=device, layout=layout, target_shape=expected
